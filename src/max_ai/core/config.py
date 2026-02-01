@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     debug: bool = True
     log_level: str = "INFO"
 
+    # LLM Configuration
+    openai_api_key: str | None = None
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o"
+
+    # Observability
+    langwatch_api_key: str | None = None
+
     @property
     def async_database_url(self) -> str:
         if self.database_url:

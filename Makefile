@@ -1,4 +1,4 @@
-.PHONY: help install dev db-start db-stop db-create migrate seed run test lint clean
+.PHONY: help install dev db-start db-stop db-create migrate seed run chat test lint clean
 
 # Default target
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "  make migrate    - Run database migrations"
 	@echo "  make seed       - Seed database with sample data"
 	@echo "  make run        - Start the API server"
+	@echo "  make chat       - Start the AI chat CLI"
 	@echo "  make test       - Run tests"
 	@echo "  make clean      - Clean up generated files"
 
@@ -40,6 +41,9 @@ seed:
 # Application
 run:
 	uv run python main.py
+
+chat:
+	uv run max-ai
 
 # Testing
 test:

@@ -1,0 +1,27 @@
+{
+  "name": "Review Skill",
+  "description": "Review workflow evaluation cases",
+  "cases": [
+    {
+      "name": "review_day",
+      "user_input": "Let's review my day",
+      "expected_tools": ["get_today_tasks"],
+      "expected_in_response": [],
+      "category": "review"
+    },
+    {
+      "name": "weekly_summary",
+      "user_input": "Give me a weekly summary",
+      "expected_tools": ["get_week_tasks", "list_roles"],
+      "expected_in_response": [],
+      "category": "review"
+    },
+    {
+      "name": "role_stats",
+      "user_input": "How did I do with my health goals this week?",
+      "expected_tools": ["get_week_tasks", "list_roles"],
+      "expected_in_response": [],
+      "category": "review"
+    }
+  ]
+}
