@@ -70,6 +70,10 @@ class LangWatchTrace:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self._trace and self._enabled:
             self._trace.__exit__(exc_type, exc_val, exc_tb)
+            # Force flush to ensure trace is sent immediately
+            client = langwatch.state.get_instance()
+            if client and client.tracer_provider:
+                client.tracer_provider.force_flush(timeout_millis=5000)
 
     async def __aenter__(self) -> "LangWatchTrace":
         return self.__enter__()
