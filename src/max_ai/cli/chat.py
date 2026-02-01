@@ -3,6 +3,11 @@
 import asyncio
 import sys
 
+from dotenv import load_dotenv
+
+# Load .env before importing agent (which needs OPENAI_API_KEY)
+load_dotenv()
+
 from max_ai.agent import MaxAgent
 
 

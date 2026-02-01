@@ -162,7 +162,7 @@ class MaxAgent:
                     await db.commit()
 
                     # Extract response text
-                    response = result.data
+                    response = result.output
 
                     # Add assistant response to memory
                     self.memory.add_assistant_message(response)

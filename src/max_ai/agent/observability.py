@@ -1,11 +1,21 @@
 """LangWatch observability wrapper for agent tracing."""
 
 import functools
+import logging
+import warnings
 from typing import Any, Callable, TypeVar
 
 from max_ai.core.config import get_settings
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+# Suppress verbose LangWatch logging
+logging.getLogger("langwatch").setLevel(logging.ERROR)
+logging.getLogger("langwatch.utils.initialization").setLevel(logging.ERROR)
+logging.getLogger("langwatch.client").setLevel(logging.ERROR)
+
+# Suppress LangWatch warnings
+warnings.filterwarnings("ignore", module="langwatch")
 
 # Try to import langwatch, but make it optional
 try:
