@@ -1,12 +1,18 @@
 """CLI chat interface for Max AI."""
 
 import asyncio
+import logging
 import sys
 
 from dotenv import load_dotenv
 
 # Load .env before importing agent (which needs OPENAI_API_KEY)
 load_dotenv()
+
+# Suppress noisy loggers for clean CLI output
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
 
 from max_ai.agent import MaxAgent
 
