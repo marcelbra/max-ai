@@ -1,4 +1,4 @@
-.PHONY: help install dev db-start db-stop db-create migrate seed run chat test lint clean
+.PHONY: help install dev db-start db-stop db-setup db-create migrate seed run chat test lint clean
 
 # Default target
 help:
@@ -7,7 +7,8 @@ help:
 	@echo "  make dev        - Install with dev dependencies"
 	@echo "  make db-start   - Start PostgreSQL"
 	@echo "  make db-stop    - Stop PostgreSQL"
-	@echo "  make db-create  - Create database"
+	@echo "  make db-setup   - Create user, password, and database"
+	@echo "  make db-create  - Alias for db-setup"
 	@echo "  make migrate    - Run database migrations"
 	@echo "  make seed       - Seed database with sample data"
 	@echo "  make run        - Start the API server"
@@ -23,14 +24,25 @@ dev:
 	uv sync --extra dev
 
 # Database
+PSQL=/opt/homebrew/opt/postgresql@16/bin/psql
+CREATEDB=/opt/homebrew/opt/postgresql@16/bin/createdb
+CREATEUSER=/opt/homebrew/opt/postgresql@16/bin/createuser
+
 db-start:
-	brew services start postgresql@16
+	brew services start postgresql@16 || true
 
 db-stop:
 	brew services stop postgresql@16
 
-db-create:
-	/opt/homebrew/opt/postgresql@16/bin/createdb maxai || true
+db-setup: db-start
+	@echo "Creating database user and database..."
+	$(CREATEUSER) -s maxai 2>/dev/null || true
+	$(PSQL) -c "ALTER USER maxai WITH PASSWORD 'maxai';" postgres
+	$(CREATEDB) -O maxai maxai 2>/dev/null || true
+	$(PSQL) -c "ALTER DATABASE maxai OWNER TO maxai;" postgres
+	@echo "Database setup complete!"
+
+db-create: db-setup
 
 migrate:
 	uv run alembic upgrade head
