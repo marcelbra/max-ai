@@ -1,13 +1,10 @@
 """LangWatch observability wrapper for agent tracing."""
 
-import functools
 import logging
 import warnings
-from typing import Any, Callable, TypeVar
+from typing import Any
 
 from max_ai.core.config import get_settings
-
-F = TypeVar("F", bound=Callable[..., Any])
 
 # Suppress verbose LangWatch logging
 logging.getLogger("langwatch").setLevel(logging.ERROR)
@@ -26,9 +23,16 @@ except ImportError:
     LANGWATCH_AVAILABLE = False
     langwatch = None
 
+_initialized = False
+
 
 def init_langwatch() -> bool:
     """Initialize LangWatch if API key is configured."""
+    global _initialized
+
+    if _initialized:
+        return True
+
     if not LANGWATCH_AVAILABLE:
         return False
 
@@ -36,73 +40,38 @@ def init_langwatch() -> bool:
     if not settings.langwatch_api_key:
         return False
 
-    langwatch.api_key = settings.langwatch_api_key
+    # Properly initialize LangWatch with setup()
+    langwatch.setup(
+        api_key=settings.langwatch_api_key,
+        debug=False,
+    )
+    _initialized = True
     return True
 
 
-def trace_agent(name: str = "max-agent") -> Callable[[F], F]:
-    """
-    Decorator to trace agent runs with LangWatch.
+class LangWatchTrace:
+    """Context manager for creating LangWatch traces."""
 
-    Usage:
-        @trace_agent("my-agent")
-        async def run_agent(...):
-            ...
-    """
-
-    def decorator(func: F) -> F:
-        if not LANGWATCH_AVAILABLE:
-            return func
-
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            settings = get_settings()
-            if not settings.langwatch_api_key:
-                return await func(*args, **kwargs)
-
-            with langwatch.trace(name=name):
-                return await func(*args, **kwargs)
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            settings = get_settings()
-            if not settings.langwatch_api_key:
-                return func(*args, **kwargs)
-
-            with langwatch.trace(name=name):
-                return func(*args, **kwargs)
-
-        # Return appropriate wrapper based on function type
-        import asyncio
-
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper  # type: ignore
-        return sync_wrapper  # type: ignore
-
-    return decorator
-
-
-class LangWatchSpan:
-    """Context manager for creating LangWatch spans."""
-
-    def __init__(self, name: str, span_type: str = "chain"):
+    def __init__(self, name: str = "max-agent-chat"):
         self.name = name
-        self.span_type = span_type
-        self._span = None
+        self._trace = None
+        self._enabled = False
 
-    def __enter__(self) -> "LangWatchSpan":
+    def __enter__(self) -> "LangWatchTrace":
         if LANGWATCH_AVAILABLE:
             settings = get_settings()
             if settings.langwatch_api_key:
-                self._span = langwatch.span(name=self.name, type=self.span_type)
-                self._span.__enter__()
+                init_langwatch()
+                self._trace = langwatch.trace(name=self.name)
+                self._trace.__enter__()
+                self._enabled = True
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if self._span:
-            self._span.__exit__(exc_type, exc_val, exc_tb)
+        if self._trace and self._enabled:
+            self._trace.__exit__(exc_type, exc_val, exc_tb)
 
-    async def __aenter__(self) -> "LangWatchSpan":
+    async def __aenter__(self) -> "LangWatchTrace":
         return self.__enter__()
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

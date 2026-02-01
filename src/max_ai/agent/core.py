@@ -9,7 +9,7 @@ from max_ai.db import get_session_factory
 
 from .llm import OpenAILLM
 from .memory import ConversationMemory
-from .observability import LangWatchSpan, init_langwatch
+from .observability import LangWatchTrace, init_langwatch
 from .prompts import get_system_prompt
 from .tools.goals import (
     CreateRecurringGoalInput,
@@ -148,7 +148,7 @@ class MaxAgent:
         message_history = self.memory.get_messages()[:-1]  # Exclude current message
 
         # Run the agent with database session
-        async with LangWatchSpan("max-agent-chat"):
+        async with LangWatchTrace():
             session_factory = get_session_factory()
             async with session_factory() as db:
                 try:
