@@ -1,12 +1,15 @@
 """ElevenLabs Text-to-Speech with sounddevice playback."""
 
 import asyncio
+import time
 
 import numpy as np
 import sounddevice as sd
 from elevenlabs.client import ElevenLabs
 
 _SAMPLE_RATE = 22050
+_MAX_RETRIES = 3
+_RETRY_DELAY = 1.0
 
 
 async def speak(
@@ -23,13 +26,21 @@ async def speak(
     client = ElevenLabs(api_key=api_key)
 
     def _generate() -> bytes:
-        chunks = client.text_to_speech.convert(
-            voice_id=voice_id,
-            text=text,
-            model_id=model_id,
-            output_format="pcm_22050",
-        )
-        return b"".join(chunks)
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                chunks = client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=text,
+                    model_id=model_id,
+                    output_format="pcm_22050",
+                )
+                return b"".join(chunks)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(_RETRY_DELAY * (attempt + 1))
+        raise last_exc  # type: ignore[misc]
 
     pcm_bytes = await asyncio.to_thread(_generate)
     audio = np.frombuffer(pcm_bytes, dtype=np.int16)
