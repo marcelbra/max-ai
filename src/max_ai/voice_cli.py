@@ -3,13 +3,13 @@
 import asyncio
 import io
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import anthropic
 import numpy as np
-import sounddevice as sd
 import soundfile as sf
 from rich.console import Console
 from rich.markdown import Markdown
@@ -203,6 +203,7 @@ async def voice_chat_loop(
 
         # Speak response — Enter interrupts playback and auto-starts next recording
         pcm_bytes = b""
+        tts_stop = threading.Event()
         console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt…[/]")
         speak_task = asyncio.create_task(
             speak(
@@ -210,6 +211,7 @@ async def voice_chat_loop(
                 api_key=settings.elevenlabs_api_key,
                 voice_id=settings.elevenlabs_voice_id,
                 model_id=settings.elevenlabs_tts_model,
+                stop_event=tts_stop,
             )
         )
         interrupt_task = asyncio.create_task(_wait_for_enter())
@@ -219,7 +221,7 @@ async def voice_chat_loop(
                 return_when=asyncio.FIRST_COMPLETED,
             )
         except (KeyboardInterrupt, asyncio.CancelledError):
-            sd.stop()
+            tts_stop.set()
             speak_task.cancel()
             interrupt_task.cancel()
             for t in (speak_task, interrupt_task):
@@ -230,9 +232,8 @@ async def voice_chat_loop(
             raise
 
         if interrupt_task in done and speak_task not in done:
-            # User interrupted mid-playback
-            sd.stop()
-            speak_task.cancel()
+            # User interrupted mid-playback — signal the stream to stop cleanly
+            tts_stop.set()
             try:
                 await speak_task
             except (asyncio.CancelledError, Exception):

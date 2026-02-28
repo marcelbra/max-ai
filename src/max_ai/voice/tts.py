@@ -1,6 +1,7 @@
 """ElevenLabs Text-to-Speech with sounddevice playback."""
 
 import asyncio
+import threading
 import time
 
 import numpy as np
@@ -17,11 +18,13 @@ async def speak(
     api_key: str,
     voice_id: str,
     model_id: str = "eleven_turbo_v2_5",
+    stop_event: threading.Event | None = None,
 ) -> bytes:
     """Convert text to speech via ElevenLabs and play it through the speakers.
 
     Uses pcm_22050 output format for direct sounddevice playback (no ffmpeg needed).
     Returns the raw PCM bytes (int16, 22050 Hz) for optional downstream use (e.g. debug saving).
+    Pass a threading.Event as stop_event to interrupt playback cleanly without PortAudio errors.
     """
     client = ElevenLabs(api_key=api_key)
 
@@ -44,6 +47,34 @@ async def speak(
 
     pcm_bytes = await asyncio.to_thread(_generate)
     audio = np.frombuffer(pcm_bytes, dtype=np.int16)
-    sd.play(audio, samplerate=_SAMPLE_RATE)
-    await asyncio.to_thread(sd.wait)
+
+    def _play() -> None:
+        idx = 0
+        done = threading.Event()
+
+        def callback(outdata: np.ndarray, frames: int, _time: object, _status: sd.CallbackFlags) -> None:
+            nonlocal idx
+            if stop_event is not None and stop_event.is_set():
+                outdata[:] = 0
+                raise sd.CallbackStop
+            remaining = len(audio) - idx
+            if remaining <= 0:
+                outdata[:] = 0
+                raise sd.CallbackStop
+            n = min(frames, remaining)
+            outdata[:n, 0] = audio[idx : idx + n]
+            if n < frames:
+                outdata[n:] = 0
+            idx += n
+
+        with sd.OutputStream(
+            samplerate=_SAMPLE_RATE,
+            channels=1,
+            dtype="int16",
+            callback=callback,
+            finished_callback=done.set,
+        ):
+            done.wait()
+
+    await asyncio.to_thread(_play)
     return pcm_bytes
