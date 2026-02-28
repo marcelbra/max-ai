@@ -13,6 +13,11 @@ dependencies = [
     "asyncpg>=0.29.0",
     "spotipy>=2.23.0",
     "langwatch>=0.3.0",
+    "elevenlabs>=1.0.0",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "numpy>=1.26.0",
+    "jinja2>=3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +31,7 @@ dev = [
 
 [project.scripts]
 max-ai = "max_ai.__main__:main"
+max-ai-voice = "max_ai.voice_cli:run_voice_cli"
 
 [build-system]
 requires = ["hatchling"]

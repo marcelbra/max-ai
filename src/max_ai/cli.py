@@ -16,15 +16,12 @@ from max_ai.agent import run
 from max_ai.config import settings
 from max_ai.monitoring.langwatch import setup_langwatch, trace_turn
 from max_ai.persistence import ConversationStore
+from max_ai.prompts import load_prompt
 from max_ai.tools.registry import ToolRegistry
 
 console = Console()
 
-SYSTEM_PROMPT = """\
-You are Max, a personal AI agent. You help with tasks, control Spotify music, \
-and anything else the user needs. You have access to tools — use them when appropriate. \
-Be concise and direct. If you're doing something, do it rather than just describing it.\
-"""
+SYSTEM_PROMPT = load_prompt("system")
 
 HELP_TEXT = """\
 Commands:
