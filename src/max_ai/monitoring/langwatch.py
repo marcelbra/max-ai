@@ -30,6 +30,7 @@ def setup_langwatch() -> None:
 async def trace_turn(
     gen: AsyncIterator[str],
     user_input: str = "",
+    thread_id: str | None = None,
 ) -> AsyncIterator[str]:
     """
     Wrap an agent turn with LangWatch tracing if enabled.
@@ -44,7 +45,7 @@ async def trace_turn(
         import langwatch
 
         with langwatch.trace() as trace:
-            trace.update(input=user_input)
+            trace.update(input=user_input, metadata={"thread_id": thread_id} if thread_id else None)
             chunks: list[str] = []
             async for chunk in gen:
                 chunks.append(chunk)

@@ -11,7 +11,7 @@ Ref: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use
 """
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import anthropic
@@ -26,6 +26,7 @@ async def run(
     messages: list[dict[str, Any]],
     system: str,
     max_iterations: int = 10,
+    on_tool_use: Callable[[list[str]], None] | None = None,
 ) -> AsyncIterator[str]:
     """Run the agentic loop, yielding text chunks from the final response."""
     api_tools = registry.get_api_tools()
@@ -62,6 +63,9 @@ async def run(
 
         elif response.stop_reason == "tool_use":
             tool_blocks = [b for b in response.content if b.type == "tool_use"]
+
+            if on_tool_use:
+                on_tool_use([tb.name for tb in tool_blocks])
 
             results = await asyncio.gather(
                 *[registry.execute(tb.name, tb.input) for tb in tool_blocks],

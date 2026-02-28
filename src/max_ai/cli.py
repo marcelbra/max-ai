@@ -61,6 +61,10 @@ async def chat_loop(
         if not user_input:
             continue
 
+        if user_input.lower() in ("exit", "quit"):
+            console.print("[dim]Goodbye.[/]")
+            break
+
         # Handle slash commands
         if user_input.startswith("/"):
             cmd = user_input.lower().split()[0]
@@ -102,10 +106,15 @@ async def chat_loop(
         tool_names_used: list[str] = []
 
         try:
-            with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True):
+            with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True) as live:
+                def on_tool_use(names: list[str]) -> None:
+                    label = ", ".join(names)
+                    live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
+
                 async for chunk in trace_turn(
-                    run(client, registry, messages, SYSTEM_PROMPT),
+                    run(client, registry, messages, SYSTEM_PROMPT, on_tool_use=on_tool_use),
                     user_input=user_input,
+                    thread_id=conv_id,
                 ):
                     response_chunks.append(chunk)
 
