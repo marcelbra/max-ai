@@ -153,8 +153,11 @@ async def main() -> None:
 
     client = create_client()
 
+    from max_ai.tools.calendar import CalendarTools
+
     registry = ToolRegistry()
     registry.register(DocumentTools(doc_store))
+    registry.register(CalendarTools())
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
 
