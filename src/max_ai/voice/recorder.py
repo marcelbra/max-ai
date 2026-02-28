@@ -21,7 +21,7 @@ def _read_key() -> str:
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     try:
-        tty.cbreak(fd)
+        tty.setcbreak(fd)
         while True:
             ch = sys.stdin.read(1)
             if ch in ("\n", "\r"):

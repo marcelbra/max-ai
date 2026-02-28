@@ -82,7 +82,7 @@ async def _wait_for_key() -> str:
 
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
-    tty.cbreak(fd)
+    tty.setcbreak(fd)
 
     def _cb() -> None:
         ch = sys.stdin.read(1)
