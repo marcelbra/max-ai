@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test run voice voice-dev migrate migration setup-spotify clean
+.PHONY: install dev lint lint-fix typecheck test run voice voice-dev migrate migration setup-spotify setup-calendar clean
 
 install:                    ## Install dependencies
 	uv sync
@@ -39,6 +39,9 @@ migration:                  ## Generate new migration from model changes
 
 setup-spotify:              ## Run Spotify OAuth setup
 	uv run python scripts/setup_spotify.py
+
+setup-calendar:             ## Grant macOS Calendar access (one-time)
+	uv run python scripts/setup_calendar.py
 
 clean:                      ## Remove build artifacts
 	rm -rf .mypy_cache .pytest_cache .ruff_cache __pycache__
