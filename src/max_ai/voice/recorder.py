@@ -1,12 +1,35 @@
 """Push-to-talk microphone recorder."""
 
 import io
+import sys
+import termios
+import tty
 from typing import Any
 
 import noisereduce as nr
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+
+
+class VoiceExit(Exception):
+    """Raised when the user presses 'x' to exit voice mode."""
+
+
+def _read_key() -> str:
+    """Read a single keypress in cbreak mode. Returns 'enter' or 'x'."""
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.cbreak(fd)
+        while True:
+            ch = sys.stdin.read(1)
+            if ch in ("\n", "\r"):
+                return "enter"
+            if ch.lower() == "x":
+                return "x"
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
 def _denoise(audio: np.ndarray, sample_rate: int) -> np.ndarray:
@@ -28,7 +51,9 @@ def record_until_enter(sample_rate: int = 16000) -> bytes:
         chunks.append(indata.copy())
 
     with sd.InputStream(samplerate=sample_rate, channels=1, dtype="int16", callback=callback):
-        input()  # blocks until Enter
+        key = _read_key()
+        if key == "x":
+            raise VoiceExit()
 
     audio = np.concatenate(chunks, axis=0) if chunks else np.zeros((0, 1), dtype=np.int16)
     if audio.shape[0] > 0:

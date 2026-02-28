@@ -23,7 +23,7 @@ from max_ai.monitoring.langwatch import setup_langwatch, trace_turn
 from max_ai.persistence import ConversationStore
 from max_ai.prompts import load_prompt
 from max_ai.tools.registry import ToolRegistry
-from max_ai.voice.recorder import record_until_enter
+from max_ai.voice.recorder import VoiceExit, record_until_enter
 from max_ai.voice.stt import transcribe
 from max_ai.voice.tts import speak
 
@@ -72,21 +72,34 @@ def _save_debug_files(wav_bytes: bytes, pcm_bytes: bytes, stamp: str) -> None:
     console.print(f"[dim]Debug audio saved to {_DEBUG_DIR}/{stamp}_{{input,output}}.wav[/]")
 
 
-async def _wait_for_enter() -> None:
-    """Wait for Enter using the event-loop reader — cancellable, no orphaned threads."""
+async def _wait_for_key() -> str:
+    """Wait for Enter or 'x'. Returns 'enter' or 'x'. Cancellation-safe, no orphaned threads."""
+    import termios
+    import tty
+
     loop = asyncio.get_event_loop()
-    fut: asyncio.Future[None] = loop.create_future()
+    fut: asyncio.Future[str] = loop.create_future()
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    tty.cbreak(fd)
 
     def _cb() -> None:
-        sys.stdin.readline()  # consume the newline
-        if not fut.done():
-            fut.set_result(None)
+        ch = sys.stdin.read(1)
+        if ch in ("\n", "\r"):
+            if not fut.done():
+                fut.set_result("enter")
+        elif ch.lower() == "x":
+            if not fut.done():
+                fut.set_result("x")
+        # Other chars: ignore, reader stays registered
 
-    loop.add_reader(sys.stdin.fileno(), _cb)
+    loop.add_reader(fd, _cb)
     try:
-        await fut
+        return await fut
     finally:
-        loop.remove_reader(sys.stdin.fileno())
+        loop.remove_reader(fd)
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 SYSTEM_PROMPT = load_prompt("system") + "\n\n" + load_prompt("voice")
@@ -108,7 +121,7 @@ async def voice_chat_loop(
         Panel(
             "[bold cyan]max-ai voice[/] — Personal AI Agent\n"
             "[dim]Press [bold]Enter[/] to start recording, [bold]Enter[/] again to send\n"
-            "[bold]Ctrl+C[/] to quit[/]",
+            "[bold]x[/] to quit at any time[/]",
             border_style="cyan",
         )
     )
@@ -119,8 +132,11 @@ async def voice_chat_loop(
         # Prompt user to start recording (skipped when auto-starting after interrupt)
         if not auto_start:
             try:
-                console.print("\n[dim]Press [bold]Enter[/] to record…[/]", end="")
-                await asyncio.to_thread(input)
+                console.print("\n[dim]Press [bold]Enter[/] to record, [bold]x[/] to quit…[/]", end="")
+                key = await _wait_for_key()
+                if key == "x":
+                    console.print("\n[dim]Goodbye.[/]")
+                    break
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Goodbye.[/]")
                 break
@@ -135,9 +151,14 @@ async def voice_chat_loop(
                 await asyncio.to_thread(_set_spotify_volume, 20)
 
         # Record audio
-        console.print("[bold yellow]● Recording[/] — press [bold]Enter[/] to stop…")
+        console.print("[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…")
         try:
             wav_bytes = await asyncio.to_thread(record_until_enter)
+        except VoiceExit:
+            if prev_volume is not None:
+                await asyncio.to_thread(_set_spotify_volume, prev_volume)
+            console.print("\n[dim]Goodbye.[/]")
+            break
         except Exception as e:
             if prev_volume is not None:
                 await asyncio.to_thread(_set_spotify_volume, prev_volume)
@@ -204,7 +225,7 @@ async def voice_chat_loop(
         # Speak response — Enter interrupts playback and auto-starts next recording
         pcm_bytes = b""
         tts_stop = threading.Event()
-        console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt…[/]")
+        console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]")
         speak_task = asyncio.create_task(
             speak(
                 full_response,
@@ -214,7 +235,7 @@ async def voice_chat_loop(
                 stop_event=tts_stop,
             )
         )
-        interrupt_task = asyncio.create_task(_wait_for_enter())
+        interrupt_task = asyncio.create_task(_wait_for_key())
         try:
             done, _ = await asyncio.wait(
                 {speak_task, interrupt_task},
@@ -232,16 +253,20 @@ async def voice_chat_loop(
             raise
 
         if interrupt_task in done and speak_task not in done:
-            # User interrupted mid-playback — signal the stream to stop cleanly
+            # User pressed a key mid-playback — signal the stream to stop cleanly
+            key = interrupt_task.result()
             tts_stop.set()
             try:
                 await speak_task
             except (asyncio.CancelledError, Exception):
                 pass
+            if key == "x":
+                console.print("[dim]Goodbye.[/]")
+                break
             auto_start = True
             console.print("[dim]Interrupted.[/]")
         else:
-            # TTS completed naturally — cancel the Enter watcher
+            # TTS completed naturally — cancel the key watcher
             interrupt_task.cancel()
             try:
                 await interrupt_task
