@@ -45,7 +45,7 @@ async def trace_turn(
     try:
         import langwatch
 
-        with langwatch.trace() as trace:
+        async with langwatch.trace() as trace:
             metadata: dict[str, str] = {}
             if thread_id:
                 metadata["thread_id"] = thread_id
