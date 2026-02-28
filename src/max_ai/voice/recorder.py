@@ -33,9 +33,10 @@ def _read_key() -> str:
 
 
 def _denoise(audio: np.ndarray, sample_rate: int) -> np.ndarray:
-    """Apply spectral gating noise reduction. Input/output: int16 (N, 1)."""
+    """Apply spectral gating noise reduction (two passes). Input/output: int16 (N, 1)."""
     flat = audio.flatten().astype(np.float32) / 32768.0
     denoised = nr.reduce_noise(y=flat, sr=sample_rate)
+    denoised = nr.reduce_noise(y=denoised, sr=sample_rate)  # second pass removes residual noise
     return (denoised * 32768.0).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
 
 

@@ -11,6 +11,18 @@ from elevenlabs.client import ElevenLabs
 _SAMPLE_RATE = 22050
 _MAX_RETRIES = 3
 _RETRY_DELAY = 1.0
+_PITCH_SEMITONES = 1.5  # slight upward pitch for clarity
+
+
+def _pitch_shift(audio: np.ndarray, semitones: float = _PITCH_SEMITONES) -> np.ndarray:
+    """Pitch-shift audio up by semitones via linear resampling. Input/output: int16 (N,)."""
+    ratio = 2.0 ** (semitones / 12.0)
+    n = len(audio)
+    n_short = max(1, int(round(n / ratio)))
+    flat = audio.astype(np.float32)
+    compressed = np.interp(np.linspace(0, n - 1, n_short), np.arange(n), flat)
+    stretched = np.interp(np.linspace(0, n_short - 1, n), np.arange(n_short), compressed)
+    return stretched.clip(-32768, 32767).astype(np.int16)
 
 
 async def speak(
@@ -46,7 +58,7 @@ async def speak(
         raise last_exc  # type: ignore[misc]
 
     pcm_bytes = await asyncio.to_thread(_generate)
-    audio = np.frombuffer(pcm_bytes, dtype=np.int16)
+    audio = _pitch_shift(np.frombuffer(pcm_bytes, dtype=np.int16))
 
     def _play() -> None:
         idx = 0
