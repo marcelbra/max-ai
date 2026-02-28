@@ -19,7 +19,10 @@ class DocumentTools(BaseTool):
                     "type": "object",
                     "properties": {
                         "title": {"type": "string", "description": "Unique title for the document"},
-                        "content": {"type": "string", "description": "Markdown content of the document"},
+                        "content": {
+                            "type": "string",
+                            "description": "Markdown content of the document",
+                        },
                     },
                     "required": ["title", "content"],
                 },
@@ -54,7 +57,10 @@ class DocumentTools(BaseTool):
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "title": {"type": "string", "description": "Title of the document to archive"},
+                        "title": {
+                            "type": "string",
+                            "description": "Title of the document to archive",
+                        },
                     },
                     "required": ["title"],
                 },
@@ -75,7 +81,10 @@ class DocumentTools(BaseTool):
             ),
             ToolDefinition(
                 name="document_search",
-                description="Search document titles and content for a query string. Returns matching active documents.",
+                description=(
+                    "Search document titles and content for a query string."
+                    " Returns matching active documents."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -112,7 +121,10 @@ class DocumentTools(BaseTool):
                 docs = await self._store.list_all(include_archived=include_archived)
                 if not docs:
                     return "No documents found."
-                lines = [f"- **{d['title']}** [{d['status']}] — created {d['created_at'][:10]}" for d in docs]
+                lines = [
+                    f"- **{d['title']}** [{d['status']}] — created {d['created_at'][:10]}"
+                    for d in docs
+                ]
                 return "\n".join(lines)
 
             elif tool_name == "document_search":

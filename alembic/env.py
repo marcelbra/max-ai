@@ -1,17 +1,17 @@
 """Alembic environment configuration."""
 
 import asyncio
-from logging.config import fileConfig
 
+# Load app models so autogenerate can detect them
+import sys
+from logging.config import fileConfig
+from pathlib import Path
+
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
-# Load app models so autogenerate can detect them
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from max_ai.config import settings

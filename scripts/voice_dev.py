@@ -105,7 +105,11 @@ def main() -> None:
     clip = 0
     while True:
         clip += 1
-        print(f"[Clip {clip:02d}] Press Enter to start recording (q to quit) ...", end=" ", flush=True)
+        print(
+            f"[Clip {clip:02d}] Press Enter to start recording (q to quit) ...",
+            end=" ",
+            flush=True,
+        )
 
         key = _wait_for_enter_or_quit()
         if key == "q":

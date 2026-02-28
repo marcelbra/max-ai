@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     title: Mapped[str | None] = mapped_column(nullable=True)
 
 
@@ -32,7 +32,7 @@ class Message(Base):
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"))
     role: Mapped[str]
     content: Mapped[str]  # JSON-serialized content blocks
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 
 class Document(Base):
@@ -42,8 +42,8 @@ class Document(Base):
     title: Mapped[str]
     content: Mapped[str]
     status: Mapped[str] = mapped_column(default="active")
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 
 def _ensure_db_dir(database_url: str) -> None:
@@ -145,7 +145,9 @@ class DocumentStore:
             "updated_at": doc.updated_at.isoformat(),
         }
 
-    async def edit(self, title: str, new_title: str | None = None, new_content: str | None = None) -> str:
+    async def edit(
+        self, title: str, new_title: str | None = None, new_content: str | None = None
+    ) -> str:
         async with self.session_factory() as session:
             result = await session.execute(
                 select(Document).where(Document.title == title, Document.status == "active")
@@ -157,7 +159,7 @@ class DocumentStore:
                 doc.title = new_title
             if new_content is not None:
                 doc.content = new_content
-            doc.updated_at = datetime.now(timezone.utc)
+            doc.updated_at = datetime.now(UTC)
             await session.commit()
         return f"Document '{title}' updated."
 
@@ -170,7 +172,7 @@ class DocumentStore:
             if doc is None:
                 return f"Error: document '{title}' not found."
             doc.status = "archived"
-            doc.updated_at = datetime.now(timezone.utc)
+            doc.updated_at = datetime.now(UTC)
             await session.commit()
         return f"Document '{title}' archived."
 

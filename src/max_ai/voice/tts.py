@@ -64,7 +64,9 @@ async def speak(
         idx = 0
         done = threading.Event()
 
-        def callback(outdata: np.ndarray, frames: int, _time: object, _status: sd.CallbackFlags) -> None:
+        def callback(
+            outdata: np.ndarray, frames: int, _time: object, _status: sd.CallbackFlags
+        ) -> None:
             nonlocal idx
             if stop_event is not None and stop_event.is_set():
                 outdata[:] = 0

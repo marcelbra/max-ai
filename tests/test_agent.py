@@ -1,13 +1,16 @@
 """Tests for the agent loop."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from max_ai.tools.registry import ToolRegistry
 
 
 @pytest.mark.asyncio
-async def test_agent_end_turn(mock_anthropic_client: MagicMock, empty_registry: ToolRegistry) -> None:
+async def test_agent_end_turn(
+    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+) -> None:
     """Agent yields text when stop_reason is end_turn."""
     from max_ai.agent import run
 
@@ -27,7 +30,9 @@ async def test_agent_end_turn(mock_anthropic_client: MagicMock, empty_registry: 
 
 
 @pytest.mark.asyncio
-async def test_agent_max_tokens(mock_anthropic_client: MagicMock, empty_registry: ToolRegistry) -> None:
+async def test_agent_max_tokens(
+    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+) -> None:
     """Agent yields truncation notice on max_tokens."""
     from max_ai.agent import run
 

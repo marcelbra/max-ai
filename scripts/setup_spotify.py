@@ -25,7 +25,6 @@ def main() -> None:
     TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        import spotipy
         from spotipy.oauth2 import SpotifyOAuth
 
         scopes = [

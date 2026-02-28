@@ -73,7 +73,7 @@ async def run(
             )
 
             tool_results = []
-            for tb, result in zip(tool_blocks, results):
+            for tb, result in zip(tool_blocks, results, strict=False):
                 if isinstance(result, Exception):
                     content = f"Error: {result}"
                 else:

@@ -12,11 +12,11 @@ import anthropic
 import numpy as np
 import soundfile as sf
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.spinner import Spinner
-from rich.live import Live
 
 from max_ai.agent import run
 from max_ai.config import settings
@@ -183,7 +183,9 @@ async def chat_loop(
         response_chunks: list[str] = []
 
         try:
-            with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True) as live:
+            with Live(
+                Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
+            ) as live:
                 def on_tool_use(names: list[str]) -> None:
                     label = ", ".join(names)
                     live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
@@ -223,7 +225,9 @@ async def voice_chat_loop(
     from max_ai.voice.tts import speak
 
     if not settings.elevenlabs_api_key:
-        console.print("[red]Error:[/] MAX_AI_ELEVENLABS_API_KEY is not set. Add it to your .env file.")
+        console.print(
+            "[red]Error:[/] MAX_AI_ELEVENLABS_API_KEY is not set. Add it to your .env file."
+        )
         return
 
     conv_id = await store.create_conversation()
@@ -244,7 +248,9 @@ async def voice_chat_loop(
     while True:
         if injected_text is None and not auto_start:
             try:
-                console.print("\n[dim]Press [bold]Enter[/] to record, [bold]x[/] to quit…[/]", end="")
+                console.print(
+                    "\n[dim]Press [bold]Enter[/] to record, [bold]x[/] to quit…[/]", end=""
+                )
                 key_task = asyncio.create_task(_wait_for_key())
                 queue_task: asyncio.Task[dict[str, Any]] = asyncio.create_task(event_queue.get())
                 done, _ = await asyncio.wait(
@@ -260,7 +266,7 @@ async def voice_chat_loop(
                 else:
                     key_task.cancel()
                     event = queue_task.result()
-                    console.print(f"\n[bold yellow]◆ Background event[/]")
+                    console.print("\n[bold yellow]◆ Background event[/]")
                     injected_text = event["content"]
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Goodbye.[/]")
@@ -276,7 +282,9 @@ async def voice_chat_loop(
             await store.append_message(conv_id, "user", user_text)
             response_chunks: list[str] = []
             try:
-                with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True) as live:
+                with Live(
+                    Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
+                ) as live:
                     def on_tool_use_bg(names: list[str]) -> None:
                         label = ", ".join(names)
                         live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
@@ -301,7 +309,9 @@ async def voice_chat_loop(
             await store.append_message(conv_id, "assistant", full_response)
 
             tts_stop = threading.Event()
-            console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]")
+            console.print(
+                "[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]"
+            )
             speak_task = asyncio.create_task(
                 speak(
                     full_response,
@@ -355,7 +365,9 @@ async def voice_chat_loop(
                 await asyncio.to_thread(_set_spotify_volume, 20)
 
         # Record audio
-        console.print("[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…")
+        console.print(
+            "[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…"
+        )
         try:
             wav_bytes = await asyncio.to_thread(record_until_enter)
         except VoiceExit:
@@ -396,7 +408,9 @@ async def voice_chat_loop(
         # Run agent
         response_chunks: list[str] = []
         try:
-            with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True) as live:
+            with Live(
+                Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
+            ) as live:
                 def on_tool_use(names: list[str]) -> None:
                     label = ", ".join(names)
                     live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
@@ -426,7 +440,9 @@ async def voice_chat_loop(
         # Speak response
         pcm_bytes = b""
         tts_stop = threading.Event()
-        console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]")
+        console.print(
+            "[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]"
+        )
         speak_task = asyncio.create_task(
             speak(
                 full_response,

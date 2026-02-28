@@ -42,11 +42,17 @@ class CalendarTools(BaseTool):
                     "properties": {
                         "start_date": {
                             "type": "string",
-                            "description": "Start of range as ISO 8601 datetime, e.g. '2026-02-28T00:00:00'",
+                            "description": (
+                                "Start of range as ISO 8601 datetime,"
+                                " e.g. '2026-02-28T00:00:00'"
+                            ),
                         },
                         "end_date": {
                             "type": "string",
-                            "description": "End of range as ISO 8601 datetime, e.g. '2026-03-07T23:59:59'",
+                            "description": (
+                                "End of range as ISO 8601 datetime,"
+                                " e.g. '2026-03-07T23:59:59'"
+                            ),
                         },
                         "calendar_name": {
                             "type": "string",
@@ -73,7 +79,10 @@ class CalendarTools(BaseTool):
                         },
                         "calendar_name": {
                             "type": "string",
-                            "description": "Name of the calendar to add the event to. Defaults to the first calendar.",
+                            "description": (
+                                "Name of the calendar to add the event to."
+                                " Defaults to the first calendar."
+                            ),
                         },
                         "notes": {"type": "string", "description": "Optional notes / description"},
                         "location": {"type": "string", "description": "Optional location"},
@@ -87,7 +96,10 @@ class CalendarTools(BaseTool):
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "uid": {"type": "string", "description": "Event UID (from calendar_list_events)"},
+                        "uid": {
+                            "type": "string",
+                            "description": "Event UID (from calendar_list_events)",
+                        },
                         "title": {"type": "string", "description": "New title"},
                         "start": {"type": "string", "description": "New start as ISO 8601"},
                         "end": {"type": "string", "description": "New end as ISO 8601"},
@@ -180,7 +192,9 @@ for (const cal of app.calendars()) {{
       const summary = ev.summary() || "";
       const evEnd = ev.endDate();
       const loc = ev.location() || "";
-      rows.push([uid, summary, evStart.toISOString(), evEnd.toISOString(), cal.name(), loc].join("\\t"));
+      const row = [uid, summary, evStart.toISOString(),
+        evEnd.toISOString(), cal.name(), loc];
+      rows.push(row.join("\\t"));
     }}
   }}
 }}
@@ -287,7 +301,9 @@ for (const cal of app.calendars()) {{
   const matches = cal.events.whose({{ uid: "{_esc(uid)}" }})();
   if (matches.length > 0) {{
     const ev = matches[0];
-    info = [ev.summary() || "(no title)", ev.startDate().toISOString(), ev.endDate().toISOString(), cal.name()].join("\\t");
+    const parts = [ev.summary() || "(no title)",
+      ev.startDate().toISOString(), ev.endDate().toISOString(), cal.name()];
+    info = parts.join("\\t");
     break;
   }}
 }}

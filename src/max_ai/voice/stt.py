@@ -6,7 +6,9 @@ import io
 from elevenlabs.client import ElevenLabs
 
 
-async def transcribe(audio_wav: bytes, api_key: str, model_id: str = "scribe_v1", retries: int = 3) -> str:
+async def transcribe(
+    audio_wav: bytes, api_key: str, model_id: str = "scribe_v1", retries: int = 3
+) -> str:
     """Convert WAV audio bytes to text using ElevenLabs STT.
 
     Returns the transcribed text, or an empty string if nothing was detected.

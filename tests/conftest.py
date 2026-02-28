@@ -1,7 +1,8 @@
 """Shared test fixtures."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from max_ai.tools.registry import ToolRegistry
 

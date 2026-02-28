@@ -1,6 +1,5 @@
 """Spotify playback control tools via spotipy."""
 
-import json
 from pathlib import Path
 from typing import Any
 
