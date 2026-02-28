@@ -28,5 +28,14 @@ class Settings(BaseSettings):
     # LangWatch
     langwatch_api_key: str = ""
 
+    # ElevenLabs (voice mode)
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George (default)
+    elevenlabs_tts_model: str = "eleven_turbo_v2_5"
+    elevenlabs_stt_model: str = "scribe_v1"
+
+    # Debug
+    debug: bool = False
+
 
 settings = Settings()

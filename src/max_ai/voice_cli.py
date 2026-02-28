@@ -1,9 +1,14 @@
 """Voice chat interface — STT → Agent → TTS using ElevenLabs."""
 
 import asyncio
+import io
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import anthropic
+import numpy as np
+import soundfile as sf
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -21,6 +26,9 @@ from max_ai.voice.stt import transcribe
 from max_ai.voice.tts import speak
 
 console = Console()
+
+_DEBUG_DIR = Path.home() / ".max-ai" / "debug"
+_TTS_SAMPLE_RATE = 22050
 
 
 def _get_spotify_volume() -> int | None:
@@ -44,6 +52,22 @@ def _set_spotify_volume(level: int) -> None:
         sp.volume(level)
     except Exception:
         pass
+
+
+def _save_debug_files(wav_bytes: bytes, pcm_bytes: bytes, stamp: str) -> None:
+    """Save input WAV and output PCM as WAV to the debug directory."""
+    _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+
+    input_path = _DEBUG_DIR / f"{stamp}_input.wav"
+    input_path.write_bytes(wav_bytes)
+
+    output_path = _DEBUG_DIR / f"{stamp}_output.wav"
+    audio = np.frombuffer(pcm_bytes, dtype=np.int16)
+    buf = io.BytesIO()
+    sf.write(buf, audio, _TTS_SAMPLE_RATE, format="WAV", subtype="PCM_16")
+    output_path.write_bytes(buf.getvalue())
+
+    console.print(f"[dim]Debug audio saved to {_DEBUG_DIR}/{stamp}_{{input,output}}.wav[/]")
 
 
 SYSTEM_PROMPT = load_prompt("system") + "\n\n" + load_prompt("voice")
@@ -154,9 +178,10 @@ async def voice_chat_loop(
         await store.append_message(conv_id, "assistant", full_response)
 
         # Speak response
+        pcm_bytes = b""
         with Live(Spinner("dots", text=" [dim]Speaking…[/]"), console=console, transient=True):
             try:
-                await speak(
+                pcm_bytes = await speak(
                     full_response,
                     api_key=settings.elevenlabs_api_key,
                     voice_id=settings.elevenlabs_voice_id,
@@ -164,6 +189,11 @@ async def voice_chat_loop(
                 )
             except Exception as e:
                 console.print(f"[yellow]TTS error (response shown above):[/] {e}")
+
+        # Save debug audio if enabled
+        if settings.debug and pcm_bytes:
+            stamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+            await asyncio.to_thread(_save_debug_files, wav_bytes, pcm_bytes, stamp)
 
 
 async def main() -> None:

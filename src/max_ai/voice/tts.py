@@ -14,10 +14,11 @@ async def speak(
     api_key: str,
     voice_id: str,
     model_id: str = "eleven_turbo_v2_5",
-) -> None:
+) -> bytes:
     """Convert text to speech via ElevenLabs and play it through the speakers.
 
     Uses pcm_22050 output format for direct sounddevice playback (no ffmpeg needed).
+    Returns the raw PCM bytes (int16, 22050 Hz) for optional downstream use (e.g. debug saving).
     """
     client = ElevenLabs(api_key=api_key)
 
@@ -34,3 +35,4 @@ async def speak(
     audio = np.frombuffer(pcm_bytes, dtype=np.int16)
     sd.play(audio, samplerate=_SAMPLE_RATE)
     await asyncio.to_thread(sd.wait)
+    return pcm_bytes
