@@ -38,3 +38,6 @@ htmlcov/
 
 # Project data
 ~/.max-ai/
+
+# Voice dev recordings
+voice_dev/
