@@ -34,7 +34,7 @@ def _getch() -> str:
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     try:
-        tty.cbreak(fd)
+        tty.setcbreak(fd)
         return sys.stdin.read(1)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
