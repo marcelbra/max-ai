@@ -21,7 +21,7 @@ async def transcribe(
             file=io.BytesIO(audio_wav),
             model_id=model_id,
         )
-        return result.text.strip()
+        return str(result.text).strip()
 
     last_exc: Exception | None = None
     for attempt in range(retries):

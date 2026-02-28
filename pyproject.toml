@@ -55,6 +55,14 @@ python_version = "3.12"
 mypy_path = "src"
 packages = ["max_ai"]
 
+[[tool.mypy.overrides]]
+module = ["spotipy", "spotipy.*", "soundfile", "sounddevice", "noisereduce"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["langwatch", "langwatch.*"]
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
