@@ -46,7 +46,7 @@ def _set_spotify_volume(level: int) -> None:
         pass
 
 
-SYSTEM_PROMPT = load_prompt("voice_system")
+SYSTEM_PROMPT = load_prompt("system") + "\n\n" + load_prompt("voice")
 
 
 async def voice_chat_loop(
