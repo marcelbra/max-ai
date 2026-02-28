@@ -109,6 +109,7 @@ async def voice_chat_loop(
     client: anthropic.AsyncAnthropic,
     registry: ToolRegistry,
     store: ConversationStore,
+    event_queue: asyncio.Queue[dict[str, Any]],
 ) -> None:
     if not settings.elevenlabs_api_key:
         console.print("[red]Error:[/] MAX_AI_ELEVENLABS_API_KEY is not set. Add it to your .env file.")
@@ -127,21 +128,115 @@ async def voice_chat_loop(
     )
 
     auto_start = False  # set True when user interrupts TTS mid-playback
+    injected_text: str | None = None  # set by background events to skip recording
 
     while True:
-        # Prompt user to start recording (skipped when auto-starting after interrupt)
-        if not auto_start:
+        # Prompt user to start recording (skipped when auto-starting or background event)
+        if injected_text is None and not auto_start:
             try:
                 console.print("\n[dim]Press [bold]Enter[/] to record, [bold]x[/] to quit…[/]", end="")
-                key = await _wait_for_key()
-                if key == "x":
-                    console.print("\n[dim]Goodbye.[/]")
-                    break
+                key_task = asyncio.create_task(_wait_for_key())
+                queue_task: asyncio.Task[dict[str, Any]] = asyncio.create_task(event_queue.get())
+                done, _ = await asyncio.wait(
+                    {key_task, queue_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if key_task in done:
+                    queue_task.cancel()
+                    key = key_task.result()
+                    if key == "x":
+                        console.print("\n[dim]Goodbye.[/]")
+                        break
+                else:
+                    key_task.cancel()
+                    event = queue_task.result()
+                    console.print(f"\n[bold yellow]◆ Background event[/]")
+                    injected_text = event["content"]
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Goodbye.[/]")
                 break
         else:
             auto_start = False
+
+        # If a background event injected text, skip recording and go straight to the agent
+        if injected_text is not None:
+            user_text = injected_text
+            injected_text = None
+            console.print(f"\n[bold green]You[/] {user_text}")
+            messages.append({"role": "user", "content": user_text})
+            await store.append_message(conv_id, "user", user_text)
+            # jump directly to agent (recording/STT blocks below are skipped)
+            response_chunks: list[str] = []
+            try:
+                with Live(Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True) as live:
+                    def on_tool_use_bg(names: list[str]) -> None:
+                        label = ", ".join(names)
+                        live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
+
+                    async for chunk in trace_turn(
+                        run(client, registry, messages, SYSTEM_PROMPT, on_tool_use=on_tool_use_bg),
+                        user_input=user_text,
+                        thread_id=conv_id,
+                    ):
+                        response_chunks.append(chunk)
+            except anthropic.APIError as e:
+                console.print(f"[red]API error:[/] {e}")
+                continue
+            except Exception as e:
+                console.print(f"[red]Error:[/] {e}")
+                continue
+
+            full_response = "".join(response_chunks)
+            console.print("\n[bold blue]Max[/]")
+            console.print(Markdown(full_response))
+            await store.append_message(conv_id, "assistant", full_response)
+
+            tts_stop = threading.Event()
+            console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]")
+            speak_task = asyncio.create_task(
+                speak(
+                    full_response,
+                    api_key=settings.elevenlabs_api_key,
+                    voice_id=settings.elevenlabs_voice_id,
+                    model_id=settings.elevenlabs_tts_model,
+                    stop_event=tts_stop,
+                )
+            )
+            interrupt_task = asyncio.create_task(_wait_for_key())
+            try:
+                done_tts, _ = await asyncio.wait(
+                    {speak_task, interrupt_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                tts_stop.set()
+                speak_task.cancel()
+                interrupt_task.cancel()
+                for t in (speak_task, interrupt_task):
+                    try:
+                        await t
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                raise
+            if interrupt_task in done_tts and speak_task not in done_tts:
+                key = interrupt_task.result()
+                tts_stop.set()
+                try:
+                    await speak_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+                if key == "x":
+                    console.print("[dim]Goodbye.[/]")
+                    break
+                auto_start = True
+                console.print("[dim]Interrupted.[/]")
+            else:
+                interrupt_task.cancel()
+                try:
+                    await interrupt_task
+                except asyncio.CancelledError:
+                    pass
+            continue
 
         # Duck Spotify volume while recording
         prev_volume: int | None = None
@@ -287,6 +382,7 @@ async def main() -> None:
     from max_ai.client import create_client
     from max_ai.tools.documents import DocumentTools
     from max_ai.tools.spotify import SpotifyTools
+    from max_ai.tools.timer import TimerTool
 
     setup_langwatch()
 
@@ -299,12 +395,15 @@ async def main() -> None:
 
     client = create_client()
 
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
     registry = ToolRegistry()
     registry.register(DocumentTools(doc_store))
+    registry.register(TimerTool(event_queue))
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
 
-    await voice_chat_loop(client, registry, store)
+    await voice_chat_loop(client, registry, store, event_queue)
     await store.close()
 
 
