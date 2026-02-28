@@ -397,8 +397,11 @@ async def main() -> None:
 
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
+    from max_ai.tools.calendar import CalendarTools
+
     registry = ToolRegistry()
     registry.register(DocumentTools(doc_store))
+    registry.register(CalendarTools())
     registry.register(TimerTool(event_queue))
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
