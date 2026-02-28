@@ -139,6 +139,7 @@ async def chat_loop(
 
 async def main() -> None:
     from max_ai.client import create_client
+    from max_ai.tools.documents import DocumentTools
     from max_ai.tools.spotify import SpotifyTools
 
     setup_langwatch()
@@ -146,9 +147,14 @@ async def main() -> None:
     store = ConversationStore()
     await store.init_db()
 
+    from max_ai.persistence import DocumentStore
+    doc_store = DocumentStore()
+    await doc_store.init_db()
+
     client = create_client()
 
     registry = ToolRegistry()
+    registry.register(DocumentTools(doc_store))
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
 
