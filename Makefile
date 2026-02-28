@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test run voice migrate migration setup-spotify clean
+.PHONY: install dev lint lint-fix typecheck test run voice voice-dev migrate migration setup-spotify clean
 
 install:                    ## Install dependencies
 	uv sync
@@ -27,6 +27,9 @@ run:                        ## Start the CLI agent
 
 voice:                      ## Start the voice agent (STT → Agent → TTS)
 	uv run max-ai-voice
+
+voice-dev:                  ## Dev tool: record, denoise, save raw + denoised WAVs
+	uv run python scripts/voice_dev.py
 
 migrate:                    ## Run database migrations
 	uv run alembic upgrade head
