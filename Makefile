@@ -19,7 +19,8 @@ typecheck:                  ## Run mypy
 	uv run mypy src/
 
 test:                       ## Run tests
-	uv run pytest tests/ -v
+	uv sync --extra dev
+	uv run python -m pytest tests/ -v
 
 run:                        ## Start the CLI agent
 	uv run python -m max_ai
