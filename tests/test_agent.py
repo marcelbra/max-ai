@@ -95,9 +95,7 @@ async def test_agent_tool_use_then_end_turn(
     final_response.stop_reason = "end_turn"
     final_response.content = [text_block]
 
-    mock_anthropic_client.messages.create = AsyncMock(
-        side_effect=[tool_response, final_response]
-    )
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
 
     messages: list = []
     chunks = []

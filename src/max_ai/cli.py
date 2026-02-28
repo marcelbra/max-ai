@@ -15,7 +15,6 @@ from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.spinner import Spinner
 
 from max_ai.agent import run
@@ -30,23 +29,16 @@ console = Console()
 _DEBUG_DIR = Path.home() / ".max-ai" / "debug"
 _TTS_SAMPLE_RATE = 22050
 
-HELP_TEXT = """\
-Commands:
-  /new      — Start a new conversation
-  /history  — List recent conversations
-  /help     — Show this help
-  /exit     — Quit
-"""
-
-
 # ---------------------------------------------------------------------------
 # Voice helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_spotify_volume() -> int | None:
     """Return current Spotify volume (0–100), or None if unavailable."""
     try:
         from max_ai.tools.spotify import _get_spotify
+
         sp = _get_spotify()
         playback = sp.current_playback()
         if playback and "device" in playback:
@@ -60,6 +52,7 @@ def _set_spotify_volume(level: int) -> None:
     """Set Spotify volume, silently ignoring errors."""
     try:
         from max_ai.tools.spotify import _get_spotify
+
         sp = _get_spotify()
         sp.volume(level)
     except Exception:
@@ -112,105 +105,8 @@ async def _wait_for_key() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Chat loops
+# Voice loop
 # ---------------------------------------------------------------------------
-
-async def chat_loop(
-    client: anthropic.AsyncAnthropic,
-    registry: ToolRegistry,
-    store: ConversationStore,
-    system_prompt: str,
-) -> None:
-    conv_id = await store.create_conversation()
-    messages: list[dict[str, Any]] = []
-
-    console.print(
-        Panel(
-            "[bold cyan]max-ai[/] — Personal AI Agent\n"
-            "[dim]Type [bold]/help[/] for commands, [bold]Ctrl+C[/] to quit[/]",
-            border_style="cyan",
-        )
-    )
-
-    while True:
-        try:
-            user_input = Prompt.ask("\n[bold green]You[/]").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Goodbye.[/]")
-            break
-
-        if not user_input:
-            continue
-
-        if user_input.lower() in ("exit", "quit"):
-            console.print("[dim]Goodbye.[/]")
-            break
-
-        if user_input.startswith("/"):
-            cmd = user_input.lower().split()[0]
-
-            if cmd in ("/exit", "/quit"):
-                console.print("[dim]Goodbye.[/]")
-                break
-
-            elif cmd == "/new":
-                conv_id = await store.create_conversation()
-                messages = []
-                console.print("[dim]New conversation started.[/]")
-                continue
-
-            elif cmd == "/history":
-                convs = await store.list_conversations()
-                if not convs:
-                    console.print("[dim]No conversations yet.[/]")
-                else:
-                    for c in convs:
-                        title = c["title"] or "[untitled]"
-                        console.print(f"  [dim]{c['created_at'][:19]}[/]  {c['id'][:8]}  {title}")
-                continue
-
-            elif cmd == "/help":
-                console.print(HELP_TEXT)
-                continue
-
-            else:
-                console.print(f"[red]Unknown command:[/] {cmd}. Type [bold]/help[/].")
-                continue
-
-        messages.append({"role": "user", "content": user_input})
-        await store.append_message(conv_id, "user", user_input)
-
-        response_chunks: list[str] = []
-
-        try:
-            with Live(
-                Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
-            ) as live:
-                def on_tool_use(names: list[str]) -> None:
-                    label = ", ".join(names)
-                    live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
-
-                async for chunk in trace_turn(
-                    run(client, registry, messages, system_prompt, on_tool_use=on_tool_use),
-                    user_input=user_input,
-                    thread_id=conv_id,
-                    system=system_prompt,
-                ):
-                    response_chunks.append(chunk)
-
-        except anthropic.APIError as e:
-            console.print(f"[red]API error:[/] {e}")
-            continue
-        except Exception as e:
-            console.print(f"[red]Error:[/] {e}")
-            continue
-
-        full_response = "".join(response_chunks)
-
-        console.print("\n[bold blue]Max[/]")
-        console.print(Markdown(full_response))
-
-        await store.append_message(conv_id, "assistant", full_response)
 
 
 async def voice_chat_loop(
@@ -285,6 +181,7 @@ async def voice_chat_loop(
                 with Live(
                     Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
                 ) as live:
+
                     def on_tool_use_bg(names: list[str]) -> None:
                         label = ", ".join(names)
                         live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
@@ -411,6 +308,7 @@ async def voice_chat_loop(
             with Live(
                 Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
             ) as live:
+
                 def on_tool_use(names: list[str]) -> None:
                     label = ", ".join(names)
                     live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
@@ -501,10 +399,12 @@ async def voice_chat_loop(
 # Shared main
 # ---------------------------------------------------------------------------
 
-async def main(voice: bool = False) -> None:
+
+async def main() -> None:
     from max_ai.client import create_client
     from max_ai.tools.documents import DocumentTools
     from max_ai.tools.spotify import SpotifyTools
+    from max_ai.tools.timer import TimerTool
 
     setup_langwatch()
 
@@ -512,6 +412,7 @@ async def main(voice: bool = False) -> None:
     await store.init_db()
 
     from max_ai.persistence import DocumentStore
+
     doc_store = DocumentStore()
     await doc_store.init_db()
 
@@ -523,27 +424,17 @@ async def main(voice: bool = False) -> None:
     registry.register(DocumentTools(doc_store))
     registry.register(CalendarTools())
 
-    system_prompt = load_agent_prompt(voice_mode=voice)
-
-    if voice:
-        from max_ai.tools.timer import TimerTool
-        event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        registry.register(TimerTool(event_queue))
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    registry.register(TimerTool(event_queue))
 
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
 
-    if voice:
-        await voice_chat_loop(client, registry, store, event_queue, system_prompt)
-    else:
-        await chat_loop(client, registry, store, system_prompt)
+    system_prompt = load_agent_prompt(voice_mode=True)
+    await voice_chat_loop(client, registry, store, event_queue, system_prompt)
 
     await store.close()
 
 
-def run_cli() -> None:
-    asyncio.run(main(voice=False))
-
-
 def run_voice_cli() -> None:
-    asyncio.run(main(voice=True))
+    asyncio.run(main())

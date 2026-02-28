@@ -43,15 +43,13 @@ class CalendarTools(BaseTool):
                         "start_date": {
                             "type": "string",
                             "description": (
-                                "Start of range as ISO 8601 datetime,"
-                                " e.g. '2026-02-28T00:00:00'"
+                                "Start of range as ISO 8601 datetime, e.g. '2026-02-28T00:00:00'"
                             ),
                         },
                         "end_date": {
                             "type": "string",
                             "description": (
-                                "End of range as ISO 8601 datetime,"
-                                " e.g. '2026-03-07T23:59:59'"
+                                "End of range as ISO 8601 datetime, e.g. '2026-03-07T23:59:59'"
                             ),
                         },
                         "calendar_name": {
@@ -225,9 +223,7 @@ def _create_event(
     location: str | None,
 ) -> str:
     cal_lookup = (
-        f'app.calendars.byName("{_esc(calendar_name)}")'
-        if calendar_name
-        else "app.calendars()[0]"
+        f'app.calendars.byName("{_esc(calendar_name)}")' if calendar_name else "app.calendars()[0]"
     )
     notes_line = f'ev.description = "{_esc(notes)}";' if notes else ""
     location_line = f'ev.location = "{_esc(location)}";' if location else ""

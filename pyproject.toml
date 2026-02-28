@@ -31,8 +31,7 @@ dev = [
 ]
 
 [project.scripts]
-max-ai = "max_ai.__main__:main"
-max-ai-voice = "max_ai.cli:run_voice_cli"
+max-ai = "max_ai.cli:run_voice_cli"
 
 [build-system]
 requires = ["hatchling"]

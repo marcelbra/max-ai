@@ -76,17 +76,13 @@ class ConversationStore:
     async def append_message(self, conv_id: str, role: str, content: Any) -> None:
         serialized = json.dumps(content, default=str)
         async with self.session_factory() as session:
-            session.add(
-                Message(conversation_id=conv_id, role=role, content=serialized)
-            )
+            session.add(Message(conversation_id=conv_id, role=role, content=serialized))
             await session.commit()
 
     async def get_messages(self, conv_id: str) -> list[dict[str, Any]]:
         async with self.session_factory() as session:
             result = await session.execute(
-                select(Message)
-                .where(Message.conversation_id == conv_id)
-                .order_by(Message.id)
+                select(Message).where(Message.conversation_id == conv_id).order_by(Message.id)
             )
             rows = result.scalars().all()
         return [{"role": m.role, "content": json.loads(m.content)} for m in rows]
@@ -98,8 +94,7 @@ class ConversationStore:
             )
             rows = result.scalars().all()
         return [
-            {"id": c.id, "title": c.title, "created_at": c.created_at.isoformat()}
-            for c in rows
+            {"id": c.id, "title": c.title, "created_at": c.created_at.isoformat()} for c in rows
         ]
 
     async def close(self) -> None:
@@ -198,10 +193,12 @@ class DocumentStore:
         pattern = f"%{query}%"
         async with self.session_factory() as session:
             result = await session.execute(
-                select(Document).where(
+                select(Document)
+                .where(
                     Document.status == "active",
                     or_(Document.title.like(pattern), Document.content.like(pattern)),
-                ).order_by(Document.created_at.desc())
+                )
+                .order_by(Document.created_at.desc())
             )
             docs = result.scalars().all()
         return [

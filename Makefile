@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test run voice voice-dev migrate migration setup-spotify setup-calendar clean
+.PHONY: install dev lint lint-fix typecheck test voice voice-dev migrate migration setup-spotify setup-calendar clean
 
 install:                    ## Install dependencies
 	uv sync
@@ -22,11 +22,8 @@ test:                       ## Run tests
 	uv sync --extra dev
 	uv run python -m pytest tests/ -v
 
-run:                        ## Start the CLI agent
-	uv run python -m max_ai
-
 voice:                      ## Start the voice agent (STT → Agent → TTS)
-	uv run max-ai-voice
+	uv run max-ai
 
 voice-dev:                  ## Dev tool: record, denoise, save raw + denoised WAVs
 	uv run python scripts/voice_dev.py
