@@ -1,5 +1,16 @@
 # max-ai Project Rules
 
+## Before every commit
+Run the following checks before committing. All must pass:
+
+```
+make lint        # ruff check + format check
+make typecheck   # mypy
+make test        # pytest
+```
+
+`make lint-fix` auto-fixes most lint/format issues. Pre-commit hooks (`.pre-commit-config.yaml`) also enforce ruff and mypy on every `git commit` automatically — install them once via `make dev`.
+
 ## After every feature
 Always commit and push to remote when a feature or fix is complete. No exceptions.
 
