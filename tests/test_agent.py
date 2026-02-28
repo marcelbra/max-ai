@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from max_ai.tools.registry import ToolRegistry
+from max_ai.agent.tools.registry import ToolRegistry
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_agent_tool_use_then_end_turn(
 ) -> None:
     """Agent executes tools then yields final response."""
     from max_ai.agent import run
-    from max_ai.tools.base import BaseTool, ToolDefinition
+    from max_ai.agent.tools.base import BaseTool, ToolDefinition
 
     class EchoTool(BaseTool):
         def definitions(self) -> list[ToolDefinition]:

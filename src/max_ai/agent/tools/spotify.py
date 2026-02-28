@@ -6,8 +6,8 @@ from typing import Any
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
+from max_ai.agent.tools.base import BaseTool, ToolDefinition
 from max_ai.config import settings
-from max_ai.tools.base import BaseTool, ToolDefinition
 
 TOKEN_PATH = Path.home() / ".max-ai" / "spotify_token.json"
 
@@ -163,17 +163,17 @@ async def _dispatch(sp: spotipy.Spotify, name: str, inp: dict[str, Any]) -> str:
 
 def _get_device_id(sp: spotipy.Spotify) -> str | None:
     """Return an active device ID, falling back to the first available device."""
-    devices = sp.devices().get("devices", [])  # type: ignore[union-attr]
+    devices = sp.devices().get("devices", [])
     if not devices:
         return None
     active = next((d for d in devices if d["is_active"]), None)
-    return (active or devices[0])["id"]
+    return str((active or devices[0])["id"])
 
 
 def _play(sp: spotipy.Spotify, query: str, content_type: str) -> str:
     results = sp.search(q=query, type=content_type, limit=1)
     items_key = f"{content_type}s"
-    items = results.get(items_key, {}).get("items", [])  # type: ignore[union-attr]
+    items = results.get(items_key, {}).get("items", [])
     if not items:
         return f"No {content_type} found for '{query}'."
 
@@ -211,7 +211,7 @@ def _now_playing(sp: spotipy.Spotify) -> str:
 
 def _queue(sp: spotipy.Spotify, query: str) -> str:
     results = sp.search(q=query, type="track", limit=1)
-    items = results.get("tracks", {}).get("items", [])  # type: ignore[union-attr]
+    items = results.get("tracks", {}).get("items", [])
     if not items:
         return f"No track found for '{query}'."
     track = items[0]
@@ -222,7 +222,7 @@ def _queue(sp: spotipy.Spotify, query: str) -> str:
 def _search(sp: spotipy.Spotify, query: str, content_type: str, limit: int) -> str:
     results = sp.search(q=query, type=content_type, limit=limit)
     items_key = f"{content_type}s"
-    items = results.get(items_key, {}).get("items", [])  # type: ignore[union-attr]
+    items = results.get(items_key, {}).get("items", [])
     if not items:
         return f"No results for '{query}'."
 

@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any
 
-from max_ai.tools.base import BaseTool, ToolDefinition
+from max_ai.agent.tools.base import BaseTool, ToolDefinition
 
 
 class TimerTool(BaseTool):

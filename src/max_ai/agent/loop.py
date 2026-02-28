@@ -16,8 +16,8 @@ from typing import Any
 
 import anthropic
 
+from max_ai.agent.tools.registry import ToolRegistry
 from max_ai.config import settings
-from max_ai.tools.registry import ToolRegistry
 
 
 async def run(

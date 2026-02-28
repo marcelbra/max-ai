@@ -2,8 +2,8 @@
 
 import pytest
 
-from max_ai.tools.base import BaseTool, ToolDefinition
-from max_ai.tools.registry import ToolRegistry
+from max_ai.agent.tools.base import BaseTool, ToolDefinition
+from max_ai.agent.tools.registry import ToolRegistry
 
 
 class SimpleTool(BaseTool):
