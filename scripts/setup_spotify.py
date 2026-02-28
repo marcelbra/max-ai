@@ -7,9 +7,8 @@ from pathlib import Path
 # Ensure src is on the path when run directly
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from max_ai.agent.tools.spotify import SCOPES, TOKEN_PATH
 from max_ai.config import settings
-
-TOKEN_PATH = Path.home() / ".max-ai" / "spotify_token.json"
 
 
 def main() -> None:
@@ -27,18 +26,11 @@ def main() -> None:
     try:
         from spotipy.oauth2 import SpotifyOAuth
 
-        scopes = [
-            "user-read-playback-state",
-            "user-modify-playback-state",
-            "user-read-currently-playing",
-            "playlist-read-private",
-        ]
-
         auth = SpotifyOAuth(
             client_id=settings.spotify_client_id,
             client_secret=settings.spotify_client_secret,
             redirect_uri=settings.spotify_redirect_uri,
-            scope=" ".join(scopes),
+            scope=" ".join(SCOPES),
             cache_path=str(TOKEN_PATH),
             open_browser=True,
         )

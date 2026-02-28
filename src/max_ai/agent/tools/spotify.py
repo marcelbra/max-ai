@@ -344,31 +344,6 @@ class SpotifyTools(BaseTool):
                 },
             ),
             ToolDefinition(
-                name="spotify_recommendations",
-                description="Get track recommendations based on a seed track, artist, or genre.",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "seed": {
-                            "type": "string",
-                            "description": "Seed value: a track name, artist name, or genre string",
-                        },
-                        "seed_type": {
-                            "type": "string",
-                            "enum": ["track", "artist", "genre"],
-                            "description": "What the seed refers to. Default: track",
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 20,
-                            "description": "Number of recommendations. Default: 10",
-                        },
-                    },
-                    "required": ["seed"],
-                },
-            ),
-            ToolDefinition(
                 name="spotify_artist_top_tracks",
                 description="Get the top tracks for an artist.",
                 input_schema={
@@ -453,10 +428,6 @@ async def _dispatch(sp: spotipy.Spotify, name: str, inp: dict[str, Any]) -> str:
         return _saved_tracks(sp, inp.get("limit", 20))
     elif name == "spotify_recent":
         return _recent(sp, inp.get("limit", 10))
-    elif name == "spotify_recommendations":
-        return _recommendations(
-            sp, inp.get("seed", ""), inp.get("seed_type", "track"), inp.get("limit", 10)
-        )
     elif name == "spotify_artist_top_tracks":
         return _artist_top_tracks(sp, inp.get("artist", ""))
     return f"Unknown Spotify tool: {name}"
@@ -699,42 +670,6 @@ def _recent(sp: spotipy.Spotify, limit: int) -> str:
     lines = ["Recently played:"]
     for i, item in enumerate(items, 1):
         track = item["track"]
-        artists = ", ".join(a["name"] for a in track.get("artists", []))
-        lines.append(f"  {i}. {track['name']} — {artists}")
-    return "\n".join(lines)
-
-
-def _recommendations(sp: spotipy.Spotify, seed: str, seed_type: str, limit: int) -> str:
-    seed_tracks: list[str] = []
-    seed_artists: list[str] = []
-    seed_genres: list[str] = []
-
-    if seed_type == "genre":
-        seed_genres = [seed]
-    elif seed_type == "artist":
-        results = sp.search(q=seed, type="artist", limit=1)
-        artists = results.get("artists", {}).get("items", [])
-        if not artists:
-            return f"Artist '{seed}' not found."
-        seed_artists = [artists[0]["id"]]
-    else:
-        results = sp.search(q=seed, type="track", limit=1)
-        tracks = results.get("tracks", {}).get("items", [])
-        if not tracks:
-            return f"Track '{seed}' not found."
-        seed_tracks = [tracks[0]["id"]]
-
-    recs = sp.recommendations(
-        seed_tracks=seed_tracks,
-        seed_artists=seed_artists,
-        seed_genres=seed_genres,
-        limit=limit,
-    )
-    tracks = recs.get("tracks", [])
-    if not tracks:
-        return "No recommendations found."
-    lines = [f"Recommendations based on {seed_type} '{seed}':"]
-    for i, track in enumerate(tracks, 1):
         artists = ", ".join(a["name"] for a in track.get("artists", []))
         lines.append(f"  {i}. {track['name']} — {artists}")
     return "\n".join(lines)
