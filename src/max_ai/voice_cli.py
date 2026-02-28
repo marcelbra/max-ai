@@ -2,12 +2,14 @@
 
 import asyncio
 import io
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import anthropic
 import numpy as np
+import sounddevice as sd
 import soundfile as sf
 from rich.console import Console
 from rich.markdown import Markdown
@@ -70,6 +72,23 @@ def _save_debug_files(wav_bytes: bytes, pcm_bytes: bytes, stamp: str) -> None:
     console.print(f"[dim]Debug audio saved to {_DEBUG_DIR}/{stamp}_{{input,output}}.wav[/]")
 
 
+async def _wait_for_enter() -> None:
+    """Wait for Enter using the event-loop reader — cancellable, no orphaned threads."""
+    loop = asyncio.get_event_loop()
+    fut: asyncio.Future[None] = loop.create_future()
+
+    def _cb() -> None:
+        sys.stdin.readline()  # consume the newline
+        if not fut.done():
+            fut.set_result(None)
+
+    loop.add_reader(sys.stdin.fileno(), _cb)
+    try:
+        await fut
+    finally:
+        loop.remove_reader(sys.stdin.fileno())
+
+
 SYSTEM_PROMPT = load_prompt("system") + "\n\n" + load_prompt("voice")
 
 
@@ -94,14 +113,19 @@ async def voice_chat_loop(
         )
     )
 
+    auto_start = False  # set True when user interrupts TTS mid-playback
+
     while True:
-        # Prompt user to start recording
-        try:
-            console.print("\n[dim]Press [bold]Enter[/] to record…[/]", end="")
-            await asyncio.to_thread(input)
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Goodbye.[/]")
-            break
+        # Prompt user to start recording (skipped when auto-starting after interrupt)
+        if not auto_start:
+            try:
+                console.print("\n[dim]Press [bold]Enter[/] to record…[/]", end="")
+                await asyncio.to_thread(input)
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Goodbye.[/]")
+                break
+        else:
+            auto_start = False
 
         # Duck Spotify volume while recording
         prev_volume: int | None = None
@@ -177,16 +201,53 @@ async def voice_chat_loop(
         # Persist
         await store.append_message(conv_id, "assistant", full_response)
 
-        # Speak response
+        # Speak response — Enter interrupts playback and auto-starts next recording
         pcm_bytes = b""
-        with Live(Spinner("dots", text=" [dim]Speaking…[/]"), console=console, transient=True):
+        console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt…[/]")
+        speak_task = asyncio.create_task(
+            speak(
+                full_response,
+                api_key=settings.elevenlabs_api_key,
+                voice_id=settings.elevenlabs_voice_id,
+                model_id=settings.elevenlabs_tts_model,
+            )
+        )
+        interrupt_task = asyncio.create_task(_wait_for_enter())
+        try:
+            done, _ = await asyncio.wait(
+                {speak_task, interrupt_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            sd.stop()
+            speak_task.cancel()
+            interrupt_task.cancel()
+            for t in (speak_task, interrupt_task):
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+            raise
+
+        if interrupt_task in done and speak_task not in done:
+            # User interrupted mid-playback
+            sd.stop()
+            speak_task.cancel()
             try:
-                pcm_bytes = await speak(
-                    full_response,
-                    api_key=settings.elevenlabs_api_key,
-                    voice_id=settings.elevenlabs_voice_id,
-                    model_id=settings.elevenlabs_tts_model,
-                )
+                await speak_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            auto_start = True
+            console.print("[dim]Interrupted.[/]")
+        else:
+            # TTS completed naturally — cancel the Enter watcher
+            interrupt_task.cancel()
+            try:
+                await interrupt_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                pcm_bytes = speak_task.result()
             except Exception as e:
                 console.print(f"[yellow]TTS error (response shown above):[/] {e}")
 
