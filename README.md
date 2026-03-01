@@ -7,6 +7,7 @@ A personal AI agent you talk to. Powered by Claude, it listens through your micr
 | Capability | What it does |
 |---|---|
 | **Voice I/O** | Push-to-talk recording with noise reduction, ElevenLabs STT/TTS, interrupt mid-speech |
+| **Wake Word** | Always-listening mode: say "hey google" to activate, Deepgram streams STT, Silero VAD detects end of utterance |
 | **Spotify** | Play/pause, search tracks, control volume, queue music |
 | **Documents** | Create, read, edit, archive, and search markdown notes (stored in SQLite) |
 | **Calendar** | List, create, update, and delete macOS Calendar events |
@@ -53,11 +54,17 @@ make dev   # installs dev deps + pre-commit hooks
 
 ### 4. Run
 
+**Push-to-talk mode:**
 ```bash
 make voice
 ```
-
 Press `Enter` to start recording. Press `Enter` again to send. Press `x` to quit.
+
+**Always-listening wake word mode:**
+```bash
+make wakeword
+```
+Say **"hey google"** to activate, speak your request, then pause — the agent responds automatically. See [Wake Word](#wake-word) below for setup.
 
 ---
 
@@ -83,6 +90,11 @@ All variables use the `MAX_AI_` prefix. Only the Anthropic API key is required.
 | `MAX_AI_ENABLE_WEB_SEARCH` | No | `true` | Enable Anthropic web search tool |
 | `MAX_AI_WEB_SEARCH_MAX_USES` | No | `5` | Max searches per agent turn |
 | `MAX_AI_DEBUG` | No | `false` | Save raw/denoised audio to `~/.max-ai/debug/` |
+| `MAX_AI_PICOVOICE_ACCESS_KEY` | Wake word only | — | Picovoice access key (console.picovoice.ai) |
+| `MAX_AI_DEEPGRAM_API_KEY` | Wake word only | — | Deepgram API key (console.deepgram.com) |
+| `MAX_AI_PORCUPINE_KEYWORD_PATH` | No | — | Path to custom `.ppn` keyword file; omit to use built-in "hey google" |
+| `MAX_AI_VAD_SILENCE_THRESHOLD_MS` | No | `1800` | Milliseconds of silence before utterance is considered done |
+| `MAX_AI_VAD_MIN_WORDS` | No | `3` | Minimum words required to trigger the agent (filters accidental activations) |
 
 ---
 
@@ -100,6 +112,25 @@ All variables use the `MAX_AI_` prefix. Only the Anthropic API key is required.
 make setup-calendar   # grants Calendar permissions via osascript
 ```
 
+### Wake Word
+
+Always-listening mode uses three services — all have free tiers:
+
+1. **Picovoice** — wake word detection
+   - Sign up at [console.picovoice.ai](https://console.picovoice.ai) and copy your access key
+   - Add to `.env`: `MAX_AI_PICOVOICE_ACCESS_KEY=...`
+
+2. **Deepgram** — streaming speech-to-text
+   - Sign up at [console.deepgram.com](https://console.deepgram.com) and create an API key
+   - Add to `.env`: `MAX_AI_DEEPGRAM_API_KEY=...`
+
+3. Install the extras and run:
+   ```bash
+   make wakeword
+   ```
+
+The built-in wake word is **"hey google"** (a free Porcupine keyword). To use a custom phrase, train one at console.picovoice.ai, download the `.ppn` file, and set `MAX_AI_PORCUPINE_KEYWORD_PATH=/path/to/keyword.ppn`.
+
 ### LangWatch (tracing)
 
 Add `MAX_AI_LANGWATCH_API_KEY` to `.env`. Agent turns are automatically traced.
@@ -110,7 +141,8 @@ Add `MAX_AI_LANGWATCH_API_KEY` to `.env`. Agent turns are automatically traced.
 
 | Target | Description |
 |---|---|
-| `make voice` | Start the agent (voice mode) |
+| `make voice` | Start the agent (push-to-talk voice mode) |
+| `make wakeword` | Start the agent (always-listening wake word mode) |
 | `make install` | Install dependencies |
 | `make dev` | Install dev deps + pre-commit hooks |
 | `make test` | Run all tests |
@@ -143,7 +175,12 @@ src/max_ai/
 │       ├── timer.py         # Background timer tool
 │       └── alarm.py         # Audio alarm (beeps)
 └── voice/
-    ├── loop.py              # Voice REPL: record → transcribe → agent → speak
+    ├── loop.py              # Push-to-talk REPL: record → transcribe → agent → speak
+    ├── listen_loop.py       # Wake word loop: Porcupine → Deepgram → VAD → agent → speak
+    ├── state_machine.py     # AssistantState enum + transition callbacks (IDLE/LISTENING/PROCESSING/SPEAKING)
+    ├── wakeword.py          # Porcupine wake word detector
+    ├── vad.py               # Silero VAD: silence accumulation → utterance end
+    ├── transcribe.py        # Deepgram WebSocket streaming transcriber
     ├── recorder.py          # Microphone capture + noise reduction
     ├── stt.py               # ElevenLabs speech-to-text
     └── tts.py               # ElevenLabs text-to-speech + playback
@@ -155,7 +192,7 @@ src/max_ai/
 2. On `tool_use` → execute tools concurrently, append results, loop
 3. On `end_turn` → yield text response, done
 
-### Voice Loop
+### Push-to-talk Loop
 
 1. Wait for `Enter` → record until `Enter` again
 2. Denoise audio (two-pass spectral gating)
@@ -163,6 +200,15 @@ src/max_ai/
 4. Run agent turn (with spinner + tool labels)
 5. Synthesize and play TTS response
 6. Save turn to SQLite, resume from next input
+
+### Wake Word Loop
+
+1. Stream microphone continuously via sounddevice
+2. Buffer audio into Porcupine frames; detect wake word (IDLE → LISTENING)
+3. Stream audio to Deepgram WebSocket; Silero VAD tracks silence
+4. On silence threshold or Deepgram UtteranceEnd (LISTENING → PROCESSING)
+5. Transcripts shorter than `VAD_MIN_WORDS` are discarded silently → back to IDLE
+6. Run agent turn → synthesize and play TTS (PROCESSING → SPEAKING → IDLE)
 
 ---
 

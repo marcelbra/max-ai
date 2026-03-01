@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test voice voice-dev migrate migration setup-spotify setup-calendar clean
+.PHONY: install dev lint lint-fix typecheck test voice wakeword voice-dev migrate migration setup-spotify setup-calendar clean
 
 install:                    ## Install dependencies
 	uv sync
@@ -25,6 +25,10 @@ test:                       ## Run tests
 
 voice:                      ## Start the voice agent (STT → Agent → TTS)
 	uv run max-ai
+
+wakeword:                   ## Start the always-listening wake word agent
+	uv sync --extra wake-word
+	uv run max-ai --wakeword
 
 voice-dev:                  ## Dev tool: record, denoise, save raw + denoised WAVs
 	uv run python scripts/voice_dev.py
