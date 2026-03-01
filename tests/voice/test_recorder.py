@@ -28,7 +28,7 @@ class _CapturingInputStream:
         pass
 
 
-@pytest.mark.parametrize("input_device", [None, 3, 0])  # type: ignore[misc]
+@pytest.mark.parametrize("input_device", [None, 3, 0])
 def test_record_until_enter_passes_device_to_input_stream(input_device: int | None) -> None:
     """record_until_enter must forward input_device to sd.InputStream."""
     with (

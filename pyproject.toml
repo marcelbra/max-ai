@@ -29,9 +29,15 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pre-commit>=3.0.0",
 ]
+wake-word = [
+    "pvporcupine>=3.0",
+    "deepgram-sdk>=3.0",
+    "torch>=2.0",
+    "numpy>=1.24",
+]
 
 [project.scripts]
-max-ai = "max_ai.cli:run_voice_cli"
+max-ai = "max_ai.cli:run_cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -62,6 +68,18 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["langwatch", "langwatch.*"]
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["pvporcupine", "pvporcupine.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["deepgram", "deepgram.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["torch", "torch.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
