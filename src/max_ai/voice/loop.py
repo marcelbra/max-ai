@@ -13,7 +13,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.spinner import Spinner
 
-from max_ai.agent import run
+from max_ai.agent import Agent
 from max_ai.agent.tools.registry import ToolRegistry
 from max_ai.config import settings
 from max_ai.monitoring.langwatch import trace_turn
@@ -93,10 +93,7 @@ async def _wait_for_key() -> str:
 
 
 async def _run_agent_turn(
-    client: anthropic.AsyncAnthropic,
-    registry: ToolRegistry,
-    messages: list[dict[str, Any]],
-    system_prompt: str,
+    agent: Agent,
     user_text: str,
     conv_id: str,
 ) -> str | None:
@@ -112,10 +109,10 @@ async def _run_agent_turn(
                 live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
 
             async for chunk in trace_turn(
-                run(client, registry, messages, system_prompt, on_tool_use=on_tool_use),
+                agent.run(user_text, on_tool_use=on_tool_use),
                 user_input=user_text,
                 thread_id=conv_id,
-                system=system_prompt,
+                system=agent.system,
             ):
                 response_chunks.append(chunk)
     except anthropic.APIError as e:
@@ -210,7 +207,7 @@ async def voice_chat_loop(
         return
 
     conv_id = await store.create_conversation()
-    messages: list[dict[str, Any]] = []
+    agent = Agent(client, registry, system_prompt)
 
     console.print(
         Panel(
@@ -305,12 +302,9 @@ async def voice_chat_loop(
                 continue
 
         console.print(f"\n[bold green]You[/] {user_text}")
-        messages.append({"role": "user", "content": user_text})
         await store.append_message(conv_id, "user", user_text)
 
-        full_response = await _run_agent_turn(
-            client, registry, messages, system_prompt, user_text, conv_id
-        )
+        full_response = await _run_agent_turn(agent, user_text, conv_id)
         if full_response is None:
             continue
 

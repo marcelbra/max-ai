@@ -1,9 +1,10 @@
-"""Tests for the agent loop."""
+"""Tests for the Agent class."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from max_ai.agent import Agent
 from max_ai.agent.tools.registry import ToolRegistry
 
 
@@ -12,21 +13,20 @@ async def test_agent_end_turn(
     mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields text when stop_reason is end_turn."""
-    from max_ai.agent import run
-
     response = MagicMock()
     response.stop_reason = "end_turn"
     response.content = [MagicMock(type="text", text="Hello!")]
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
-    async for chunk in run(mock_anthropic_client, empty_registry, messages, "system"):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert chunks == ["Hello!"]
-    assert len(messages) == 1
-    assert messages[0]["role"] == "assistant"
+    assert len(agent.messages) == 2
+    assert agent.messages[0]["role"] == "user"
+    assert agent.messages[1]["role"] == "assistant"
 
 
 @pytest.mark.asyncio
@@ -34,16 +34,14 @@ async def test_agent_max_tokens(
     mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields truncation notice on max_tokens."""
-    from max_ai.agent import run
-
     response = MagicMock()
     response.stop_reason = "max_tokens"
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
-    async for chunk in run(mock_anthropic_client, empty_registry, messages, "system"):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert any("max_tokens" in c for c in chunks)
@@ -54,7 +52,6 @@ async def test_agent_tool_use_then_end_turn(
     mock_anthropic_client: MagicMock,
 ) -> None:
     """Agent executes tools then yields final response."""
-    from max_ai.agent import run
     from max_ai.agent.tools.base import BaseTool, ToolDefinition
 
     class EchoTool(BaseTool):
@@ -97,20 +94,19 @@ async def test_agent_tool_use_then_end_turn(
 
     mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, registry, "system")
     chunks = []
-    async for chunk in run(mock_anthropic_client, registry, messages, "system"):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert chunks == ["Done!"]
-    # messages should have: assistant (tool_use), user (tool_result), assistant (end_turn)
-    assert len(messages) == 3
+    # messages: user, assistant (tool_use), user (tool_result), assistant (end_turn)
+    assert len(agent.messages) == 4
 
 
 @pytest.mark.asyncio
 async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> None:
     """on_tool_use callback is called with the names of executed tools."""
-    from max_ai.agent import run
     from max_ai.agent.tools.base import BaseTool, ToolDefinition
 
     class NoopTool(BaseTool):
@@ -150,14 +146,8 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
     mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
 
     called_with: list[str] = []
-    messages: list = []
-    async for _ in run(
-        mock_anthropic_client,
-        registry,
-        messages,
-        "system",
-        on_tool_use=lambda names: called_with.extend(names),
-    ):
+    agent = Agent(mock_anthropic_client, registry, "system")
+    async for _ in agent.run("hi", on_tool_use=lambda names: called_with.extend(names)):
         pass
 
     assert called_with == ["noop"]
@@ -166,7 +156,6 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
 @pytest.mark.asyncio
 async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock) -> None:
     """When a tool raises, the exception is caught and passed back as an error string."""
-    from max_ai.agent import run
     from max_ai.agent.tools.base import BaseTool, ToolDefinition
 
     class BrokenTool(BaseTool):
@@ -205,14 +194,14 @@ async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock)
 
     mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, registry, "system")
     chunks = []
-    async for chunk in run(mock_anthropic_client, registry, messages, "system"):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert chunks == ["Handled"]
-    # The tool_result message (messages[1]) should contain the error, not crash
-    tool_result_content = messages[1]["content"][0]["content"]
+    # messages[2] = user (tool_result), after user (0) and assistant tool_use (1)
+    tool_result_content = agent.messages[2]["content"][0]["content"]
     assert "Error" in tool_result_content
 
 
@@ -221,16 +210,14 @@ async def test_agent_unexpected_stop_reason(
     mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
 ) -> None:
     """An unrecognised stop_reason yields a message and exits."""
-    from max_ai.agent import run
-
     response = MagicMock()
     response.stop_reason = "some_future_reason"
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
-    async for chunk in run(mock_anthropic_client, empty_registry, messages, "system"):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert len(chunks) == 1
@@ -242,18 +229,14 @@ async def test_agent_max_iterations(
     mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields a message when max_iterations is exhausted without end_turn."""
-    from max_ai.agent import run
-
     response = MagicMock()
     response.stop_reason = "pause_turn"
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)
 
-    messages: list = []
+    agent = Agent(mock_anthropic_client, empty_registry, "system", max_iterations=2)
     chunks = []
-    async for chunk in run(
-        mock_anthropic_client, empty_registry, messages, "system", max_iterations=2
-    ):
+    async for chunk in agent.run("hi"):
         chunks.append(chunk)
 
     assert len(chunks) == 1

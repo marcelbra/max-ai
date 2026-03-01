@@ -1,6 +1,6 @@
-"""Agent package — loop, prompt, and tools."""
+"""Agent package — Agent class, prompt, and tools."""
 
-from max_ai.agent.loop import run
+from max_ai.agent.agent import Agent
 from max_ai.agent.prompts import load_agent_prompt
 
-__all__ = ["run", "load_agent_prompt"]
+__all__ = ["Agent", "load_agent_prompt"]
