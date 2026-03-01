@@ -41,7 +41,7 @@ async def main() -> None:
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
 
-    system_prompt = load_agent_prompt(voice_mode=True)
+    system_prompt = load_agent_prompt()
     await voice_chat_loop(client, registry, store, event_queue, system_prompt)
 
     await store.close()

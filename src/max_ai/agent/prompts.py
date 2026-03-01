@@ -8,7 +8,7 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 _env = Environment(loader=FileSystemLoader(str(_PROMPTS_DIR)), keep_trailing_newline=True)
 
 
-def load_agent_prompt(voice_mode: bool = False) -> str:
+def load_agent_prompt() -> str:
     """Render the agent prompt template."""
     template = _env.get_template("agent.j2")
-    return template.render(voice_mode=voice_mode).strip()
+    return template.render().strip()
