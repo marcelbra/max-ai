@@ -17,7 +17,8 @@ class VoiceActivityDetector:
         """Lazy-load Silero VAD from torch hub."""
         import torch  # lazy: optional wake-word extra
 
-        model, utils = torch.hub.load("snakers4/silero-vad", "silero_vad", trust_repo=True)
+        hub: Any = torch.hub
+        model, utils = hub.load("snakers4/silero-vad", "silero_vad", trust_repo=True)
         self._model = model
         self._get_speech_timestamps = utils[0]
 
