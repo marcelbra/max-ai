@@ -115,6 +115,7 @@ async def voice_listen_loop(
         samplerate=wake_detector.sample_rate,
         channels=1,
         dtype="int16",
+        blocksize=wake_detector.frame_length,
         device=settings.voice_input_device,
         callback=_on_audio,
     ):

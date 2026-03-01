@@ -30,9 +30,7 @@ class VoiceActivityDetector:
             self._load_model()
 
         assert self._model is not None
-        sample_count = len(audio_chunk) // 2
-        audio_array = torch.frombuffer(audio_chunk, dtype=torch.int16).float() / 32768.0
-        audio_array = audio_array[:sample_count]
+        audio_array = torch.frombuffer(bytearray(audio_chunk), dtype=torch.int16).float() / 32768.0
 
         with torch.no_grad():
             confidence = self._model(audio_array, self._sample_rate).item()
