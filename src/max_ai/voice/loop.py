@@ -70,7 +70,7 @@ async def _wait_for_key() -> str:
     old_settings = termios.tcgetattr(fd)
     tty.setcbreak(fd)
 
-    def _cb() -> None:
+    def _on_key_press() -> None:
         ch = sys.stdin.read(1)
         if ch in ("\n", "\r"):
             if not fut.done():
@@ -79,7 +79,7 @@ async def _wait_for_key() -> str:
             if not fut.done():
                 fut.set_result("x")
 
-    loop.add_reader(fd, _cb)
+    loop.add_reader(fd, _on_key_press)
     try:
         return await fut
     finally:

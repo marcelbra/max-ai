@@ -38,6 +38,25 @@ Current untyped libraries in this project: `spotipy`, `soundfile`, `sounddevice`
 
 Also apply this principle broadly: whenever you encounter a project-specific recurring issue (tooling quirks, env setup, architectural constraints), add a note to CLAUDE.md so it doesn't need to be debugged again.
 
+## Naming conventions
+Variable, parameter, and attribute names must be fully spelled out — never abbreviated. Examples of what is **not allowed**:
+- `defn` → use `definition`
+- `buf` → use `buffer` or a descriptive name like `wav_buffer`
+- `idx` → use `index` or a descriptive name like `position`
+- `cfg` / `conf` → use `config` or `configuration`
+- `msg` → use `message`
+- `resp` → use `response`
+- `req` → use `request`
+- `conv` → use `conversation`
+- `ctx` → use `context`
+- `cb` / `_cb` → use a descriptive name like `_on_key_press` or `_on_complete`
+- `fn` / `func` → use `function` or a descriptive name
+- `err` → use `error` or `exception`
+- `tmp` → use `temporary` or a descriptive name
+- `num` → use `count` or a descriptive name
+
+Single-letter names (`n`, `i`, `x`, `y`) are acceptable only in tight mathematical or NumPy signal-processing loops where they are conventional.
+
 ## Running tests
 Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `uv sync` alone. `make test` handles this automatically via `uv sync --extra dev`. If running pytest directly, install them first with `uv sync --extra dev`, then use `uv run python -m pytest tests/ -v`.
 

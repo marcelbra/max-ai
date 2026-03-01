@@ -23,8 +23,8 @@ def save_debug_files(wav_bytes: bytes, pcm_bytes: bytes, stamp: str) -> None:
 
     output_path = DEBUG_AUDIO_DIR / f"{stamp}_output.wav"
     audio = np.frombuffer(pcm_bytes, dtype=np.int16)
-    buf = io.BytesIO()
-    sf.write(buf, audio, TTS_SAMPLE_RATE, format="WAV", subtype="PCM_16")
-    output_path.write_bytes(buf.getvalue())
+    wav_buffer = io.BytesIO()
+    sf.write(wav_buffer, audio, TTS_SAMPLE_RATE, format="WAV", subtype="PCM_16")
+    output_path.write_bytes(wav_buffer.getvalue())
 
     console.print(f"[dim]Debug audio saved to {DEBUG_AUDIO_DIR}/{stamp}_{{input,output}}.wav[/]")

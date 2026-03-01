@@ -61,25 +61,25 @@ async def speak(
     audio = _pitch_shift(np.frombuffer(pcm_bytes, dtype=np.int16))
 
     def _play() -> None:
-        idx = 0
+        position = 0
         done = threading.Event()
 
         def callback(
             outdata: np.ndarray, frames: int, _time: object, _status: sd.CallbackFlags
         ) -> None:
-            nonlocal idx
+            nonlocal position
             if stop_event is not None and stop_event.is_set():
                 outdata[:] = 0
                 raise sd.CallbackStop
-            remaining = len(audio) - idx
+            remaining = len(audio) - position
             if remaining <= 0:
                 outdata[:] = 0
                 raise sd.CallbackStop
-            n = min(frames, remaining)
-            outdata[:n, 0] = audio[idx : idx + n]
-            if n < frames:
-                outdata[n:] = 0
-            idx += n
+            frames_to_write = min(frames, remaining)
+            outdata[:frames_to_write, 0] = audio[position : position + frames_to_write]
+            if frames_to_write < frames:
+                outdata[frames_to_write:] = 0
+            position += frames_to_write
 
         with sd.OutputStream(
             samplerate=_SAMPLE_RATE,

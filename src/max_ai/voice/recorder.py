@@ -60,6 +60,6 @@ def record_until_enter(sample_rate: int = 16000) -> bytes:
     if audio.shape[0] > 0:
         audio = _denoise(audio, sample_rate)
 
-    buf = io.BytesIO()
-    sf.write(buf, audio, sample_rate, format="WAV", subtype="PCM_16")
-    return buf.getvalue()
+    wav_buffer = io.BytesIO()
+    sf.write(wav_buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
+    return wav_buffer.getvalue()

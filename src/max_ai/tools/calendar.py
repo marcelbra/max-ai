@@ -305,11 +305,11 @@ for (const cal of app.calendars()) {{
 }}
 info || "not found";
 """
-    info = _run_jxa(lookup_script)
-    if info == "not found":
+    event_info = _run_jxa(lookup_script)
+    if event_info == "not found":
         return f"No event found with uid: {uid}"
 
-    parts = info.split("\t")
+    parts = event_info.split("\t")
     title, start, end, cal = parts[0], parts[1], parts[2], parts[3]
 
     if not confirmed:

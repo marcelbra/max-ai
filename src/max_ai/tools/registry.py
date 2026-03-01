@@ -12,13 +12,13 @@ class ToolRegistry:
 
     def register(self, tool: BaseTool) -> None:
         """Register all tools from a BaseTool instance."""
-        for defn in tool.definitions():
-            self._tools[defn.name] = tool
-            self._definitions[defn.name] = defn
+        for definition in tool.definitions():
+            self._tools[definition.name] = tool
+            self._definitions[definition.name] = definition
 
     def get_api_tools(self) -> list[dict[str, Any]]:
         """Return all tool definitions in Anthropic API format."""
-        return [defn.to_api_dict() for defn in self._definitions.values()]
+        return [definition.to_api_dict() for definition in self._definitions.values()]
 
     async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         """Route a tool call to the appropriate handler."""
