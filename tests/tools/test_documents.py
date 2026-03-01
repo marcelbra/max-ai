@@ -12,10 +12,8 @@ from max_ai.tools.documents import DocumentTools
 @pytest.fixture
 async def document_tools(tmp_path: pathlib.Path) -> AsyncGenerator[DocumentTools, None]:
     url = f"sqlite+aiosqlite:///{tmp_path}/docs.db"
-    store = DocumentService(database_url=url)
-    await store.init_db()
-    yield DocumentTools(store=store)
-    await store.close()
+    async with DocumentService(database_url=url) as document_service:
+        yield DocumentTools(document_service=document_service)
 
 
 async def test_document_create(document_tools: DocumentTools) -> None:

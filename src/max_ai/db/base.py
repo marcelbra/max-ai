@@ -1,6 +1,7 @@
 """Shared engine/session setup for all services."""
 
 from pathlib import Path
+from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -22,10 +23,14 @@ class BaseService:
         self.engine = create_async_engine(database_url, echo=False)
         self.session_factory = async_sessionmaker(self.engine, class_=AsyncSession)
 
-    async def init_db(self) -> None:
+    async def _create_tables(self) -> None:
         """Create tables if they don't exist (dev convenience — use alembic in prod)."""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-    async def close(self) -> None:
+    async def __aenter__(self) -> Self:
+        await self._create_tables()
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
         await self.engine.dispose()

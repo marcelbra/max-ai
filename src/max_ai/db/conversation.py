@@ -6,8 +6,8 @@ from typing import Any
 
 from sqlalchemy import select
 
+from max_ai.db.base import BaseService
 from max_ai.db.models import Conversation, Message
-from max_ai.db.service_base import BaseService
 
 
 class ConversationService(BaseService):

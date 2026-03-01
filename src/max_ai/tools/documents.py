@@ -7,8 +7,8 @@ from max_ai.tools.base import BaseTool, ToolDefinition
 
 
 class DocumentTools(BaseTool):
-    def __init__(self, store: DocumentService) -> None:
-        self._store = store
+    def __init__(self, document_service: DocumentService) -> None:
+        self._document_service = document_service
 
     def definitions(self) -> list[ToolDefinition]:
         return [
@@ -98,27 +98,29 @@ class DocumentTools(BaseTool):
     async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         try:
             if tool_name == "document_create":
-                return await self._store.create(tool_input["title"], tool_input["content"])
+                return await self._document_service.create(
+                    tool_input["title"], tool_input["content"]
+                )
 
             elif tool_name == "document_read":
-                doc = await self._store.get_by_title(tool_input["title"])
+                doc = await self._document_service.get_by_title(tool_input["title"])
                 if doc is None:
                     return f"Document '{tool_input['title']}' not found."
                 return f"# {doc['title']}\n\n{doc['content']}"
 
             elif tool_name == "document_edit":
-                return await self._store.edit(
+                return await self._document_service.edit(
                     tool_input["title"],
                     new_title=tool_input.get("new_title"),
                     new_content=tool_input.get("new_content"),
                 )
 
             elif tool_name == "document_archive":
-                return await self._store.archive(tool_input["title"])
+                return await self._document_service.archive(tool_input["title"])
 
             elif tool_name == "document_list":
                 include_archived = tool_input.get("include_archived", False)
-                docs = await self._store.list_all(include_archived=include_archived)
+                docs = await self._document_service.list_all(include_archived=include_archived)
                 if not docs:
                     return "No documents found."
                 lines = [
@@ -128,7 +130,7 @@ class DocumentTools(BaseTool):
                 return "\n".join(lines)
 
             elif tool_name == "document_search":
-                docs = await self._store.search(tool_input["query"])
+                docs = await self._document_service.search(tool_input["query"])
                 if not docs:
                     return f"No documents found matching '{tool_input['query']}'."
                 lines = [f"- **{d['title']}** — updated {d['updated_at'][:10]}" for d in docs]
