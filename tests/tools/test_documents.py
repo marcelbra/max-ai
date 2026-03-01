@@ -2,14 +2,14 @@
 
 import pytest
 
-from max_ai.persistence import DocumentStore
+from max_ai.db import DocumentService
 from max_ai.tools.documents import DocumentTools
 
 
 @pytest.fixture
 async def document_tools(tmp_path):
     url = f"sqlite+aiosqlite:///{tmp_path}/docs.db"
-    store = DocumentStore(database_url=url)
+    store = DocumentService(database_url=url)
     await store.init_db()
     yield DocumentTools(store=store)
     await store.close()

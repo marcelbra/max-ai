@@ -4,8 +4,8 @@ import asyncio
 from typing import Any
 
 from max_ai.agent import load_agent_prompt
+from max_ai.db import ConversationService, DocumentService
 from max_ai.monitoring.langwatch import setup_langwatch
-from max_ai.persistence import ConversationStore
 from max_ai.tools.registry import ToolRegistry
 from max_ai.voice.loop import voice_chat_loop
 
@@ -20,12 +20,10 @@ async def main() -> None:
 
     setup_langwatch()
 
-    store = ConversationStore()
+    store = ConversationService()
     await store.init_db()
 
-    from max_ai.persistence import DocumentStore
-
-    doc_store = DocumentStore()
+    doc_store = DocumentService()
     await doc_store.init_db()
 
     client = create_client()

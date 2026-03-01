@@ -2,13 +2,13 @@
 
 import pytest
 
-from max_ai.persistence import ConversationStore, DocumentStore
+from max_ai.db import ConversationService, DocumentService
 
 
 @pytest.fixture
 async def conversation_store(tmp_path):
     url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
-    store = ConversationStore(database_url=url)
+    store = ConversationService(database_url=url)
     await store.init_db()
     yield store
     await store.close()
@@ -17,7 +17,7 @@ async def conversation_store(tmp_path):
 @pytest.fixture
 async def document_store(tmp_path):
     url = f"sqlite+aiosqlite:///{tmp_path}/docs.db"
-    store = DocumentStore(database_url=url)
+    store = DocumentService(database_url=url)
     await store.init_db()
     yield store
     await store.close()

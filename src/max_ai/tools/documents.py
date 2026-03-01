@@ -2,12 +2,12 @@
 
 from typing import Any
 
-from max_ai.persistence import DocumentStore
+from max_ai.db import DocumentService
 from max_ai.tools.base import BaseTool, ToolDefinition
 
 
 class DocumentTools(BaseTool):
-    def __init__(self, store: DocumentStore) -> None:
+    def __init__(self, store: DocumentService) -> None:
         self._store = store
 
     def definitions(self) -> list[ToolDefinition]:

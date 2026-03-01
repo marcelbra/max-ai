@@ -15,8 +15,8 @@ from rich.spinner import Spinner
 
 from max_ai.agent import Agent
 from max_ai.config import settings
+from max_ai.db import ConversationService
 from max_ai.monitoring.langwatch import trace_turn
-from max_ai.persistence import ConversationStore
 from max_ai.tools.registry import ToolRegistry
 from max_ai.voice.debug import save_debug_files
 
@@ -193,7 +193,7 @@ async def _speak_and_handle_interrupt(full_response: str) -> tuple[bool, bool, b
 async def voice_chat_loop(
     client: anthropic.AsyncAnthropic,
     registry: ToolRegistry,
-    store: ConversationStore,
+    store: ConversationService,
     event_queue: asyncio.Queue[dict[str, Any]],
     system_prompt: str,
 ) -> None:
