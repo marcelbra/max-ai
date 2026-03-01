@@ -193,7 +193,7 @@ async def _speak_and_handle_interrupt(full_response: str) -> tuple[bool, bool, b
 async def voice_chat_loop(
     client: anthropic.AsyncAnthropic,
     registry: ToolRegistry,
-    store: ConversationService,
+    conversation_service: ConversationService,
     event_queue: asyncio.Queue[dict[str, Any]],
     system_prompt: str,
 ) -> None:
@@ -206,7 +206,7 @@ async def voice_chat_loop(
         )
         return
 
-    conv_id = await store.create_conversation()
+    conv_id = await conversation_service.create_conversation()
     agent = Agent(client, registry, system_prompt)
 
     console.print(
@@ -302,7 +302,7 @@ async def voice_chat_loop(
                 continue
 
         console.print(f"\n[bold green]You[/] {user_text}")
-        await store.append_message(conv_id, "user", user_text)
+        await conversation_service.append_message(conv_id, "user", user_text)
 
         full_response = await _run_agent_turn(agent, user_text, conv_id)
         if full_response is None:
@@ -310,7 +310,7 @@ async def voice_chat_loop(
 
         console.print("\n[bold blue]Max[/]")
         console.print(Markdown(full_response))
-        await store.append_message(conv_id, "assistant", full_response)
+        await conversation_service.append_message(conv_id, "assistant", full_response)
 
         quit, should_auto_start, pcm_bytes = await _speak_and_handle_interrupt(full_response)
         if quit:
