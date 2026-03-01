@@ -3,8 +3,9 @@
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
+import anthropic
 import pytest
-from anthropic.types import ToolResultBlockParam
+from anthropic.types import ContentBlock, Message, TextBlock, ToolResultBlockParam, ToolUseBlock
 
 from max_ai.agent import Agent
 from max_ai.tools.registry import ToolRegistry
@@ -13,13 +14,13 @@ from max_ai.tools.search import BaseWebSearchTool
 
 @pytest.mark.asyncio
 async def test_agent_end_turn(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields text when stop_reason is end_turn."""
-    response: MagicMock = MagicMock()
+    response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "end_turn"
-    response.content = [MagicMock(type="text", text="Hello!")]
-    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+    response.content = [cast(TextBlock, MagicMock(spec=TextBlock, type="text", text="Hello!"))]
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
@@ -34,13 +35,13 @@ async def test_agent_end_turn(
 
 @pytest.mark.asyncio
 async def test_agent_max_tokens(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields truncation notice on max_tokens."""
-    response: MagicMock = MagicMock()
+    response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "max_tokens"
     response.content = []
-    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
@@ -52,7 +53,7 @@ async def test_agent_max_tokens(
 
 @pytest.mark.asyncio
 async def test_agent_tool_use_then_end_turn(
-    mock_anthropic_client: MagicMock,
+    mock_anthropic_client: anthropic.AsyncAnthropic,
 ) -> None:
     """Agent executes tools then yields final response."""
     from max_ai.tools.base import BaseTool, ToolDefinition
@@ -77,25 +78,25 @@ async def test_agent_tool_use_then_end_turn(
     registry = ToolRegistry()
     registry.register(EchoTool())
 
-    tool_block: MagicMock = MagicMock()
+    tool_block = cast(ToolUseBlock, MagicMock(spec=ToolUseBlock))
     tool_block.type = "tool_use"
     tool_block.name = "echo"
     tool_block.input = {"text": "hello"}
     tool_block.id = "tool_1"
 
-    text_block: MagicMock = MagicMock()
+    text_block = cast(TextBlock, MagicMock(spec=TextBlock))
     text_block.type = "text"
     text_block.text = "Done!"
 
-    tool_response: MagicMock = MagicMock()
+    tool_response = cast(Message, MagicMock(spec=Message))
     tool_response.stop_reason = "tool_use"
     tool_response.content = [tool_block]
 
-    final_response: MagicMock = MagicMock()
+    final_response = cast(Message, MagicMock(spec=Message))
     final_response.stop_reason = "end_turn"
     final_response.content = [text_block]
 
-    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, registry, "system")
     chunks = []
@@ -108,7 +109,7 @@ async def test_agent_tool_use_then_end_turn(
 
 
 @pytest.mark.asyncio
-async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> None:
+async def test_agent_on_tool_use_callback(mock_anthropic_client: anthropic.AsyncAnthropic) -> None:
     """on_tool_use callback is called with the names of executed tools."""
     from max_ai.tools.base import BaseTool, ToolDefinition
 
@@ -128,25 +129,25 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
     registry = ToolRegistry()
     registry.register(NoopTool())
 
-    tool_block: MagicMock = MagicMock()
+    tool_block = cast(ToolUseBlock, MagicMock(spec=ToolUseBlock))
     tool_block.type = "tool_use"
     tool_block.name = "noop"
     tool_block.input = {}
     tool_block.id = "t1"
 
-    text_block: MagicMock = MagicMock()
+    text_block = cast(TextBlock, MagicMock(spec=TextBlock))
     text_block.type = "text"
     text_block.text = "Done"
 
-    tool_response: MagicMock = MagicMock()
+    tool_response = cast(Message, MagicMock(spec=Message))
     tool_response.stop_reason = "tool_use"
     tool_response.content = [tool_block]
 
-    final_response: MagicMock = MagicMock()
+    final_response = cast(Message, MagicMock(spec=Message))
     final_response.stop_reason = "end_turn"
     final_response.content = [text_block]
 
-    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     called_with: list[str] = []
     agent = Agent(mock_anthropic_client, registry, "system")
@@ -157,7 +158,7 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
 
 
 @pytest.mark.asyncio
-async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock) -> None:
+async def test_agent_tool_exception_is_handled(mock_anthropic_client: anthropic.AsyncAnthropic) -> None:
     """When a tool raises, the exception is caught and passed back as an error string."""
     from max_ai.tools.base import BaseTool, ToolDefinition
 
@@ -177,25 +178,25 @@ async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock)
     registry = ToolRegistry()
     registry.register(BrokenTool())
 
-    tool_block: MagicMock = MagicMock()
+    tool_block = cast(ToolUseBlock, MagicMock(spec=ToolUseBlock))
     tool_block.type = "tool_use"
     tool_block.name = "broken"
     tool_block.input = {}
     tool_block.id = "t1"
 
-    text_block: MagicMock = MagicMock()
+    text_block = cast(TextBlock, MagicMock(spec=TextBlock))
     text_block.type = "text"
     text_block.text = "Handled"
 
-    tool_response: MagicMock = MagicMock()
+    tool_response = cast(Message, MagicMock(spec=Message))
     tool_response.stop_reason = "tool_use"
     tool_response.content = [tool_block]
 
-    final_response: MagicMock = MagicMock()
+    final_response = cast(Message, MagicMock(spec=Message))
     final_response.stop_reason = "end_turn"
     final_response.content = [text_block]
 
-    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, registry, "system")
     chunks = []
@@ -212,13 +213,13 @@ async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock)
 
 @pytest.mark.asyncio
 async def test_agent_unexpected_stop_reason(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """An unrecognised stop_reason yields a message and exits."""
-    response: MagicMock = MagicMock()
-    response.stop_reason = "some_future_reason"
+    response = cast(Message, MagicMock(spec=Message))
+    response.stop_reason = "some_future_reason"  # type: ignore[assignment]
     response.content = []
-    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
     chunks = []
@@ -231,13 +232,13 @@ async def test_agent_unexpected_stop_reason(
 
 @pytest.mark.asyncio
 async def test_agent_max_iterations(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """Agent yields a message when max_iterations is exhausted without end_turn."""
-    response: MagicMock = MagicMock()
+    response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "pause_turn"
     response.content = []
-    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system", max_iterations=2)
     chunks = []
@@ -250,15 +251,15 @@ async def test_agent_max_iterations(
 
 @pytest.mark.asyncio
 async def test_agent_includes_web_search_tool(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """When a web_search_tool is provided, its api_definition is passed to the API call."""
     from max_ai.tools.search import AnthropicWebSearch
 
-    response: MagicMock = MagicMock()
+    response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "end_turn"
-    response.content = [MagicMock(type="text", text="ok")]
-    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+    response.content = [cast(TextBlock, MagicMock(spec=TextBlock, type="text", text="ok"))]
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     web_search_tool = AnthropicWebSearch(max_uses=3)
     agent = Agent(mock_anthropic_client, empty_registry, "system", web_search_tool=web_search_tool)
@@ -272,7 +273,7 @@ async def test_agent_includes_web_search_tool(
 
 @pytest.mark.asyncio
 async def test_agent_local_web_search_tool_is_executed(
-    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """When stop_reason is tool_use for a local web search tool, execute() is called."""
     from typing import Any
@@ -295,25 +296,25 @@ async def test_agent_local_web_search_tool_is_executed(
             LocalSearch.executed = True
             return "search results"
 
-    tool_block: MagicMock = MagicMock()
+    tool_block = cast(ToolUseBlock, MagicMock(spec=ToolUseBlock))
     tool_block.type = "tool_use"
     tool_block.name = "local_search"
     tool_block.input = {"query": "test"}
     tool_block.id = "ws_1"
 
-    text_block: MagicMock = MagicMock()
+    text_block = cast(TextBlock, MagicMock(spec=TextBlock))
     text_block.type = "text"
     text_block.text = "Done"
 
-    tool_response: MagicMock = MagicMock()
+    tool_response = cast(Message, MagicMock(spec=Message))
     tool_response.stop_reason = "tool_use"
     tool_response.content = [tool_block]
 
-    final_response: MagicMock = MagicMock()
+    final_response = cast(Message, MagicMock(spec=Message))
     final_response.stop_reason = "end_turn"
     final_response.content = [text_block]
 
-    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     local_search = LocalSearch()
     agent = Agent(mock_anthropic_client, empty_registry, "system", web_search_tool=local_search)

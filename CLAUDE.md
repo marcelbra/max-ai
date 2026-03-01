@@ -57,6 +57,15 @@ Variable, parameter, and attribute names must be fully spelled out — never abb
 
 Single-letter names (`n`, `i`, `x`, `y`) are acceptable only in tight mathematical or NumPy signal-processing loops where they are conventional.
 
+## Lazy imports inside functions (intentional pattern)
+Some imports are deliberately placed inside functions rather than at the top of the file. Do not move these to module level. Valid reasons:
+
+- **Optional dependency not guaranteed to be installed** — guarded by `try/except ImportError` (e.g. `import langwatch` in `monitoring/langwatch.py`).
+- **Platform-specific module** — would raise `ImportError` on unsupported platforms at module load time (e.g. `import termios`, `import tty` in `voice/loop.py` — Unix only).
+- **Optional feature with its own deps** — e.g. `from max_ai.tools.spotify import _get_spotify` and voice modules (`tts`, `recorder`, `stt`) in `voice/loop.py`; importing them at module level would fail when the feature's extras are not installed.
+
+When reviewing code, treat an import inside a function as intentional if it falls into one of these categories.
+
 ## Running tests
 Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `uv sync` alone. `make test` handles this automatically via `uv sync --extra dev`. If running pytest directly, install them first with `uv sync --extra dev`, then use `uv run python -m pytest tests/ -v`.
 
@@ -65,4 +74,7 @@ Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `
 - Every bug fix must include a test that would have caught the bug.
 - When modifying existing code, check whether existing tests are affected and update them.
 - Tests must not hit real external services (use mocks or in-memory SQLite).
-- All local `MagicMock()` variable assignments must include an explicit type annotation: `name: MagicMock = MagicMock()`. Never leave them untyped.
+- Every `MagicMock` construction must be cast to the actual type being mocked: `name = cast(ActualType, MagicMock(spec=ActualType))`. Never use bare `MagicMock()` or leave the inferred type as `MagicMock`. Fixture return types must also reflect the real type (e.g. `-> anthropic.AsyncAnthropic`). Two narrow exceptions require suppression comments:
+  - Read-only properties on the real type: `# type: ignore[misc]`
+  - Method-attribute replacement: `# type: ignore[method-assign]`
+  - Invalid-enum test values: `# type: ignore[assignment]`
