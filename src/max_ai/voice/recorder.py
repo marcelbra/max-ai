@@ -40,7 +40,7 @@ _NORMALIZE_MAX_GAIN = 4.0  # never amplify more than 4× to avoid blowing up sil
 def _denoise(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     """Apply spectral gating noise reduction (two passes). Input/output: int16 (N, 1)."""
     flat = audio.flatten().astype(np.float32) / 32768.0
-    denoised = nr.reduce_noise(y=flat, sr=sample_rate)
+    denoised: np.ndarray = nr.reduce_noise(y=flat, sr=sample_rate)
     denoised = nr.reduce_noise(y=denoised, sr=sample_rate)
     denoised = np.nan_to_num(denoised)
     return (denoised * 32768.0).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
@@ -54,7 +54,7 @@ def _normalize(audio: np.ndarray) -> np.ndarray:
     Input/output: int16 (N, 1).
     """
     flat = audio.flatten().astype(np.float32)
-    peak = np.abs(flat).max()
+    peak: float = float(np.abs(flat).max())
     if peak == 0:
         return audio
     gain = min((_NORMALIZE_TARGET_PEAK * 32767.0) / peak, _NORMALIZE_MAX_GAIN)
