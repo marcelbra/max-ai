@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test voice wakeword voice-dev migrate migration setup-spotify setup-calendar clean
+.PHONY: install dev lint lint-fix typecheck test voice wakeword voice-dev migrate migration setup-spotify setup-calendar clean worktree
 
 install:                    ## Install dependencies
 	uv sync
@@ -44,6 +44,12 @@ setup-spotify:              ## Run Spotify OAuth setup
 
 setup-calendar:             ## Grant macOS Calendar access (one-time)
 	uv run python scripts/setup_calendar.py
+
+worktree:                   ## Create a git worktree for parallel feature work: make worktree NAME=feat/my-feature
+	@test -n "$(NAME)" || (echo "Usage: make worktree NAME=feat/<description>"; exit 1)
+	git worktree add ../$(shell basename $(CURDIR))-$(subst /,-,$(NAME)) -b $(NAME)
+	@echo "Worktree created at ../$(shell basename $(CURDIR))-$(subst /,-,$(NAME))"
+	@echo "Run: cd ../$(shell basename $(CURDIR))-$(subst /,-,$(NAME)) && claude"
 
 clean:                      ## Remove build artifacts
 	rm -rf .mypy_cache .pytest_cache .ruff_cache __pycache__
