@@ -50,7 +50,6 @@ class Settings(BaseSettings):
     porcupine_keyword_path: str = ""  # empty = use built-in keyword
     deepgram_api_key: str = ""
     vad_silence_threshold_ms: int = 1800
-    vad_min_words: int = 3
 
     # Debug
     debug: bool = False

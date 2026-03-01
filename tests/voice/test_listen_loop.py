@@ -139,8 +139,8 @@ async def test_listening_transitions_to_processing_on_utterance_end() -> None:
 
 
 @pytest.mark.asyncio
-async def test_short_transcript_returns_to_idle() -> None:
-    """A transcript with fewer than min_words words returns silently to IDLE."""
+async def test_empty_transcript_returns_to_idle() -> None:
+    """An empty transcript (Deepgram returned nothing) returns silently to IDLE."""
     from max_ai.voice.state_machine import AssistantState, StateMachine
 
     state_machine = StateMachine()
@@ -150,11 +150,10 @@ async def test_short_transcript_returns_to_idle() -> None:
     transitions: list[AssistantState] = []
     state_machine.on_change(lambda old, new: transitions.append(new))
 
-    accumulated_transcript = "hi"  # only 1 word, below min_words=3
+    accumulated_transcript = ""
 
     async def _handle_utterance_end() -> None:
-        word_count = len(accumulated_transcript.split())
-        if word_count < 3:
+        if not accumulated_transcript.strip():
             await transcriber.stop()
             state_machine.transition(AssistantState.IDLE)
             return

@@ -71,9 +71,7 @@ async def voice_listen_loop(
 
     async def _handle_utterance_end() -> None:
         nonlocal accumulated_transcript
-        word_count = len(accumulated_transcript.split())
-        if word_count < settings.vad_min_words:
-            console.print("[dim]Too short, ignoring.[/]")
+        if not accumulated_transcript.strip():
             await transcriber.stop()
             state_machine.transition(AssistantState.IDLE)
             return
