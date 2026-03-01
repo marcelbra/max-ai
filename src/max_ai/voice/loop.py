@@ -14,10 +14,10 @@ from rich.panel import Panel
 from rich.spinner import Spinner
 
 from max_ai.agent import Agent
-from max_ai.agent.tools.registry import ToolRegistry
 from max_ai.config import settings
 from max_ai.monitoring.langwatch import trace_turn
 from max_ai.persistence import ConversationStore
+from max_ai.tools.registry import ToolRegistry
 from max_ai.voice.debug import save_debug_files
 
 console = Console()
@@ -31,7 +31,7 @@ console = Console()
 def _get_spotify_volume() -> int | None:
     """Return current Spotify volume (0–100), or None if unavailable."""
     try:
-        from max_ai.agent.tools.spotify import _get_spotify
+        from max_ai.tools.spotify import _get_spotify
 
         sp = _get_spotify()
         playback = sp.current_playback()
@@ -45,7 +45,7 @@ def _get_spotify_volume() -> int | None:
 def _set_spotify_volume(level: int) -> None:
     """Set Spotify volume, silently ignoring errors."""
     try:
-        from max_ai.agent.tools.spotify import _get_spotify
+        from max_ai.tools.spotify import _get_spotify
 
         sp = _get_spotify()
         sp.volume(level)

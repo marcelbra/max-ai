@@ -2,8 +2,8 @@
 
 import pytest
 
-from max_ai.agent.tools.documents import DocumentTools
 from max_ai.persistence import DocumentStore
+from max_ai.tools.documents import DocumentTools
 
 
 @pytest.fixture

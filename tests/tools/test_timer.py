@@ -2,7 +2,7 @@
 
 import asyncio
 
-from max_ai.agent.tools.timer import TimerTool
+from max_ai.tools.timer import TimerTool
 
 
 async def test_timer_execute_returns_confirmation():

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from max_ai.agent.tools.calendar import CalendarTools, _dispatch, _esc
+from max_ai.tools.calendar import CalendarTools, _dispatch, _esc
 
 
 def test_esc_backslash() -> None:
@@ -39,7 +39,7 @@ def test_dispatch_unknown_tool() -> None:
 @pytest.mark.asyncio
 async def test_execute_wraps_exceptions_as_error_string() -> None:
     tool = CalendarTools()
-    with patch("max_ai.agent.tools.calendar._run_jxa", side_effect=RuntimeError("osascript error")):
+    with patch("max_ai.tools.calendar._run_jxa", side_effect=RuntimeError("osascript error")):
         result = await tool.execute("calendar_list_calendars", {})
     assert "Calendar error" in result
 
@@ -47,7 +47,7 @@ async def test_execute_wraps_exceptions_as_error_string() -> None:
 @pytest.mark.asyncio
 async def test_list_calendars_returns_jxa_output() -> None:
     tool = CalendarTools()
-    with patch("max_ai.agent.tools.calendar._run_jxa", return_value="Work\nPersonal"):
+    with patch("max_ai.tools.calendar._run_jxa", return_value="Work\nPersonal"):
         result = await tool.execute("calendar_list_calendars", {})
     assert "Work" in result
     assert "Personal" in result
@@ -56,6 +56,6 @@ async def test_list_calendars_returns_jxa_output() -> None:
 @pytest.mark.asyncio
 async def test_list_calendars_empty_returns_message() -> None:
     tool = CalendarTools()
-    with patch("max_ai.agent.tools.calendar._run_jxa", return_value=""):
+    with patch("max_ai.tools.calendar._run_jxa", return_value=""):
         result = await tool.execute("calendar_list_calendars", {})
     assert "No calendars" in result

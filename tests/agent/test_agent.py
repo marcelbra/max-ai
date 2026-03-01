@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from max_ai.agent import Agent
-from max_ai.agent.tools.registry import ToolRegistry
+from max_ai.tools.registry import ToolRegistry
 
 
 @pytest.mark.asyncio
@@ -52,7 +52,7 @@ async def test_agent_tool_use_then_end_turn(
     mock_anthropic_client: MagicMock,
 ) -> None:
     """Agent executes tools then yields final response."""
-    from max_ai.agent.tools.base import BaseTool, ToolDefinition
+    from max_ai.tools.base import BaseTool, ToolDefinition
 
     class EchoTool(BaseTool):
         def definitions(self) -> list[ToolDefinition]:
@@ -107,7 +107,7 @@ async def test_agent_tool_use_then_end_turn(
 @pytest.mark.asyncio
 async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> None:
     """on_tool_use callback is called with the names of executed tools."""
-    from max_ai.agent.tools.base import BaseTool, ToolDefinition
+    from max_ai.tools.base import BaseTool, ToolDefinition
 
     class NoopTool(BaseTool):
         def definitions(self) -> list[ToolDefinition]:
@@ -156,7 +156,7 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
 @pytest.mark.asyncio
 async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock) -> None:
     """When a tool raises, the exception is caught and passed back as an error string."""
-    from max_ai.agent.tools.base import BaseTool, ToolDefinition
+    from max_ai.tools.base import BaseTool, ToolDefinition
 
     class BrokenTool(BaseTool):
         def definitions(self) -> list[ToolDefinition]:

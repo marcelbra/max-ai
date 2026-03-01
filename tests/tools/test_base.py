@@ -1,6 +1,6 @@
 """Tests for BaseTool and ToolDefinition."""
 
-from max_ai.agent.tools.base import ToolDefinition
+from max_ai.tools.base import ToolDefinition
 
 
 def test_tool_definition_to_api_dict() -> None:

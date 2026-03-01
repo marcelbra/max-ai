@@ -6,8 +6,8 @@ from typing import Any
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-from max_ai.agent.tools.base import BaseTool, ToolDefinition
 from max_ai.config import settings
+from max_ai.tools.base import BaseTool, ToolDefinition
 
 TOKEN_PATH = Path.home() / ".max-ai" / "spotify_token.json"
 

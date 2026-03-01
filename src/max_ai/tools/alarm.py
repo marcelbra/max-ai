@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import sounddevice as sd
 
-from max_ai.agent.tools.base import BaseTool, ToolDefinition
+from max_ai.tools.base import BaseTool, ToolDefinition
 
 _SAMPLE_RATE = 44100
 _BEEP_HZ = 880
