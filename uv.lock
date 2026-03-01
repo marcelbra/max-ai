@@ -1073,6 +1073,7 @@ dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "deepgram-sdk" },
     { name = "elevenlabs" },
     { name = "jinja2" },
     { name = "langwatch" },
@@ -1094,9 +1095,6 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
-wake-word = [
-    { name = "deepgram-sdk" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -1104,7 +1102,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "anthropic", specifier = ">=0.45.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
-    { name = "deepgram-sdk", marker = "extra == 'wake-word'", specifier = ">=3.0" },
+    { name = "deepgram-sdk", specifier = ">=3.0" },
     { name = "elevenlabs", specifier = ">=1.0.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "langwatch", specifier = ">=0.3.0" },
@@ -1122,7 +1120,7 @@ requires-dist = [
     { name = "spotipy", specifier = ">=2.23.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.0" },
 ]
-provides-extras = ["wake-word", "dev"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "mdurl"
