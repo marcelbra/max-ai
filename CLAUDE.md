@@ -14,7 +14,7 @@ make test        # pytest
 ## Development workflow
 
 ### Bug fix
-1. Create a branch: `fix/<short-description>` (e.g. `fix/handle-empty-voice-input`)
+1. **Always use a git worktree** — run `make worktree NAME=fix/<short-description>` (e.g. `make worktree NAME=fix/handle-empty-voice-input`). Open Claude Code inside the new worktree directory.
 2. Fix the bug and add a regression test
 3. Open a PR titled `FIX: <short description>` — no issue required
 
