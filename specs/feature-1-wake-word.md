@@ -1,3 +1,5 @@
+> **Superseded** — This spec is archived. The canonical design is in [architecture.md](architecture.md) (§2 WakeWordDetector component, §8.1 Feature 1 mapping).
+
 # Feature 1: Wake Word Detection
 
 ## What This Adds

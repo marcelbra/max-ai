@@ -1,3 +1,5 @@
+> **Superseded** — This spec is archived. The canonical design is in [architecture.md](architecture.md) (§3 state table `AgentDone` row, §8.3 Feature 2 mapping).
+
 # Feature 2: Free Order of Actions
 
 ## Depends On
