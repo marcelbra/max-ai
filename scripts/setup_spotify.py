@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from max_ai.agent.tools.spotify import SCOPES, TOKEN_PATH
-
 from max_ai.config import settings
 
 
