@@ -19,12 +19,10 @@ dependencies = [
     "numpy>=1.26.0",
     "jinja2>=3.1.0",
     "noisereduce>=3.0.0",
+    "deepgram-sdk>=3.0",
 ]
 
 [project.optional-dependencies]
-wake-word = [
-    "deepgram-sdk>=3.0",
-]
 dev = [
     "ruff>=0.4.0",
     "mypy>=1.10.0",

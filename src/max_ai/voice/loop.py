@@ -281,11 +281,9 @@ async def voice_chat_loop(
 
     if settings.deepgram_api_key:
         try:
-            import deepgram as _  # noqa: F401
+            import deepgram  # noqa: F401
         except ImportError:
-            console.print(
-                "[red]Error:[/] deepgram-sdk is not installed. Run: uv sync --extra wake-word"
-            )
+            console.print("[red]Error:[/] deepgram-sdk is not installed. Run: uv sync")
             return
 
     conv_id = await conversation_service.create_conversation()
