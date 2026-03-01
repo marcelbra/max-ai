@@ -271,6 +271,7 @@ async def voice_chat_loop(
                     wav_bytes,
                     api_key=settings.elevenlabs_api_key,
                     model_id=settings.elevenlabs_stt_model,
+                    language_code=settings.elevenlabs_stt_language,
                 )
             except Exception as e:
                 console.print(f"[red]STT error:[/] {e}")

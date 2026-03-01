@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George (default)
     elevenlabs_tts_model: str = "eleven_turbo_v2_5"
     elevenlabs_stt_model: str = "scribe_v1"
+    elevenlabs_stt_language: str = "en"  # ISO 639-1 code; passed to ElevenLabs STT
 
     # Debug
     debug: bool = False
