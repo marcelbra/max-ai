@@ -4,6 +4,7 @@ from max_ai.tools.documents import DocumentTools
 from max_ai.tools.registry import ToolRegistry
 from max_ai.tools.search import AnthropicWebSearch, BaseWebSearchTool
 from max_ai.tools.spotify import SpotifyTools
+from max_ai.tools.state import SetNextStateTool
 from max_ai.tools.timer import TimerTool
 
 __all__ = [
@@ -12,6 +13,7 @@ __all__ = [
     "BaseWebSearchTool",
     "CalendarTools",
     "DocumentTools",
+    "SetNextStateTool",
     "ToolRegistry",
     "SpotifyTools",
     "TimerTool",

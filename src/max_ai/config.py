@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     # Deepgram (wake-word / streaming transcription)
     deepgram_api_key: str = ""
 
+    # Wake-word detection (Picovoice Porcupine)
+    # Empty picovoice_access_key → push-to-talk mode (Enter key triggers recording).
+    picovoice_access_key: str = ""
+    porcupine_keyword_path: str = ""  # path to custom .ppn file; empty = built-in keyword
+
+    # VAD (voice activity detection) settings
+    vad_silence_threshold_ms: int = 1800  # ms of silence before utterance-end fallback
+    vad_min_words: int = 3  # minimum words in transcript before passing to agent
+
     # ElevenLabs (voice mode)
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George (default)
