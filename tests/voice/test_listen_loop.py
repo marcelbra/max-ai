@@ -168,6 +168,79 @@ async def test_empty_transcript_returns_to_idle() -> None:
 
 
 @pytest.mark.asyncio
+async def test_interim_transcript_used_as_fallback_when_no_final() -> None:
+    """When VAD fires before Deepgram sends is_final, last interim is used instead of empty."""
+    from max_ai.voice.state_machine import AssistantState, StateMachine
+
+    state_machine = StateMachine()
+    state_machine.transition(AssistantState.LISTENING)
+
+    transcriber = _make_transcriber()
+    transitions: list[AssistantState] = []
+    state_machine.on_change(lambda old, new: transitions.append(new))
+
+    # No final transcript received yet — only an interim result was seen
+    accumulated_transcript = ""
+    last_interim_transcript = "what is the weather today"
+
+    async def _handle_utterance_end() -> None:
+        transcript_to_process = accumulated_transcript.strip() or last_interim_transcript.strip()
+        if not transcript_to_process:
+            await transcriber.stop()
+            state_machine.transition(AssistantState.IDLE)
+            return
+        await transcriber.stop()
+        state_machine.transition(AssistantState.PROCESSING)
+
+    await _handle_utterance_end()
+
+    assert state_machine.state == AssistantState.PROCESSING
+    assert AssistantState.PROCESSING in transitions
+    transcriber.stop.assert_called_once()
+
+
+def test_final_transcripts_append_not_overwrite() -> None:
+    """Multiple is_final=True segments are concatenated, not overwritten."""
+    accumulated_transcript = ""
+    last_interim_transcript = ""
+
+    def on_transcript(text: str, is_final: bool) -> None:
+        nonlocal accumulated_transcript, last_interim_transcript
+        if is_final:
+            accumulated_transcript = (accumulated_transcript + " " + text).strip()
+            last_interim_transcript = ""
+        elif text:
+            last_interim_transcript = text
+
+    on_transcript("hello there", is_final=True)
+    on_transcript("how are you", is_final=True)
+
+    assert accumulated_transcript == "hello there how are you"
+    assert last_interim_transcript == ""
+
+
+def test_interim_transcript_cleared_on_final() -> None:
+    """Receiving a final transcript clears the interim buffer."""
+    accumulated_transcript = ""
+    last_interim_transcript = ""
+
+    def on_transcript(text: str, is_final: bool) -> None:
+        nonlocal accumulated_transcript, last_interim_transcript
+        if is_final:
+            accumulated_transcript = (accumulated_transcript + " " + text).strip()
+            last_interim_transcript = ""
+        elif text:
+            last_interim_transcript = text
+
+    on_transcript("what is", is_final=False)
+    assert last_interim_transcript == "what is"
+
+    on_transcript("what is the time", is_final=True)
+    assert accumulated_transcript == "what is the time"
+    assert last_interim_transcript == ""
+
+
+@pytest.mark.asyncio
 async def test_event_queue_handled_during_idle() -> None:
     """Background events from event_queue are processed when in IDLE state."""
     from max_ai.voice.state_machine import AssistantState, StateMachine

@@ -56,9 +56,10 @@ async def voice_listen_loop(
     audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
     frame_buffer = bytearray()
     accumulated_transcript = ""
+    last_interim_transcript = ""
     utterance_done_event = asyncio.Event()
 
-    main_loop = asyncio.get_event_loop()
+    main_loop = asyncio.get_running_loop()
 
     web_search_tool = (
         AnthropicWebSearch(settings.web_search_max_uses) if settings.enable_web_search else None
@@ -70,18 +71,22 @@ async def voice_listen_loop(
         main_loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(indata))
 
     async def _handle_utterance_end() -> None:
-        nonlocal accumulated_transcript
-        if not accumulated_transcript.strip():
+        nonlocal accumulated_transcript, last_interim_transcript
+        transcript_to_process = accumulated_transcript.strip() or last_interim_transcript.strip()
+        if not transcript_to_process:
             await transcriber.stop()
+            accumulated_transcript = ""
+            last_interim_transcript = ""
             state_machine.transition(AssistantState.IDLE)
             return
 
         await transcriber.stop()
         state_machine.transition(AssistantState.PROCESSING)
 
-        full_response = await _run_agent_turn(agent, accumulated_transcript, conv_id)
-        await conversation_service.append_message(conv_id, "user", accumulated_transcript)
+        full_response = await _run_agent_turn(agent, transcript_to_process, conv_id)
+        await conversation_service.append_message(conv_id, "user", transcript_to_process)
         accumulated_transcript = ""
+        last_interim_transcript = ""
 
         if full_response:
             await conversation_service.append_message(conv_id, "assistant", full_response)
@@ -144,12 +149,18 @@ async def voice_listen_loop(
                             state_machine.transition(AssistantState.LISTENING)
                             vad.reset()
                             accumulated_transcript = ""
+                            last_interim_transcript = ""
                             utterance_done_event.clear()
 
                             def _on_transcript(text: str, is_final: bool) -> None:
-                                nonlocal accumulated_transcript
+                                nonlocal accumulated_transcript, last_interim_transcript
                                 if is_final:
-                                    accumulated_transcript = text
+                                    accumulated_transcript = (
+                                        accumulated_transcript + " " + text
+                                    ).strip()
+                                    last_interim_transcript = ""
+                                elif text:
+                                    last_interim_transcript = text
 
                             def _on_utterance_end() -> None:
                                 main_loop.call_soon_threadsafe(utterance_done_event.set)
