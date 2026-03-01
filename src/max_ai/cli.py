@@ -4,20 +4,22 @@ import asyncio
 from typing import Any
 
 from max_ai.agent import load_agent_prompt
+from max_ai.client import create_client
+from max_ai.config import settings
 from max_ai.db import ConversationService, DocumentService
 from max_ai.monitoring.langwatch import setup_langwatch
-from max_ai.tools.registry import ToolRegistry
+from max_ai.tools import (
+    AlarmTool,
+    CalendarTools,
+    DocumentTools,
+    SpotifyTools,
+    TimerTool,
+    ToolRegistry,
+)
 from max_ai.voice.loop import voice_chat_loop
 
 
 async def main() -> None:
-    from max_ai.client import create_client
-    from max_ai.config import settings
-    from max_ai.tools.alarm import AlarmTool
-    from max_ai.tools.documents import DocumentTools
-    from max_ai.tools.spotify import SpotifyTools
-    from max_ai.tools.timer import TimerTool
-
     setup_langwatch()
 
     store = ConversationService()
@@ -28,21 +30,26 @@ async def main() -> None:
 
     client = create_client()
 
-    from max_ai.tools.calendar import CalendarTools
-
-    registry = ToolRegistry()
-    registry.register(DocumentTools(doc_store))
-    registry.register(CalendarTools())
-
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-    registry.register(TimerTool(event_queue))
-    registry.register(AlarmTool())
+    use_spotify = settings.spotify_client_id and settings.spotify_client_secret
 
-    if settings.spotify_client_id and settings.spotify_client_secret:
-        registry.register(SpotifyTools())
+    tool_registry = ToolRegistry()
+
+    tool_registry.register(DocumentTools(doc_store))
+    tool_registry.register(CalendarTools())
+    tool_registry.register(TimerTool(event_queue))
+    tool_registry.register(AlarmTool())
+    if use_spotify:
+        tool_registry.register(SpotifyTools())
 
     system_prompt = load_agent_prompt()
-    await voice_chat_loop(client, registry, store, event_queue, system_prompt)
+    await voice_chat_loop(
+        client=client,
+        registry=tool_registry,
+        store=store,
+        event_queue=event_queue,
+        system_prompt=system_prompt,
+    )
 
     await store.close()
 
