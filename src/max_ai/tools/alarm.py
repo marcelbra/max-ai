@@ -4,7 +4,6 @@ import asyncio
 from typing import Any
 
 import numpy as np
-import sounddevice as sd
 
 from max_ai.tools.base import BaseTool, ToolDefinition
 
@@ -26,6 +25,8 @@ def _make_beep(freq: float, duration: float, sample_rate: int) -> np.ndarray:
 
 
 def _play_alarm() -> None:
+    import sounddevice as sd  # noqa: PLC0415 — optional platform dep, lazy import
+
     beep = _make_beep(_BEEP_HZ, _BEEP_DURATION, _SAMPLE_RATE)
     silence = np.zeros(int(_SAMPLE_RATE * _BEEP_PAUSE), dtype=np.int16)
     pattern = np.concatenate([np.concatenate([beep, silence]) for _ in range(_BEEPS)])
