@@ -43,7 +43,7 @@ def _denoise(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     denoised = nr.reduce_noise(y=flat, sr=sample_rate)
     denoised = nr.reduce_noise(y=denoised, sr=sample_rate)
     denoised = np.nan_to_num(denoised)
-    return (denoised * 32768.0).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)  # type: ignore[no-any-return]
+    return (denoised * 32768.0).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
 
 
 def _normalize(audio: np.ndarray) -> np.ndarray:
@@ -58,7 +58,7 @@ def _normalize(audio: np.ndarray) -> np.ndarray:
     if peak == 0:
         return audio
     gain = min((_NORMALIZE_TARGET_PEAK * 32767.0) / peak, _NORMALIZE_MAX_GAIN)
-    return (flat * gain).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)  # type: ignore[no-any-return]
+    return (flat * gain).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
 
 
 def record_until_enter(
