@@ -33,9 +33,9 @@ def _make_fake_record(on_chunk_data: bytes = b"\x00\x01\x02\x03") -> Callable[..
     return fake_record
 
 
-def _make_mocks() -> tuple[
-    anthropic.AsyncAnthropic, ToolRegistry, ConversationService, "asyncio.Queue[Any]"
-]:
+def _make_mocks() -> (
+    tuple[anthropic.AsyncAnthropic, ToolRegistry, ConversationService, "asyncio.Queue[Any]"]
+):
     client = cast(anthropic.AsyncAnthropic, MagicMock(spec=anthropic.AsyncAnthropic))
     registry = cast(ToolRegistry, MagicMock(spec=ToolRegistry))
     conversation_service = cast(ConversationService, MagicMock(spec=ConversationService))
