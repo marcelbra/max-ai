@@ -7,55 +7,89 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ---------------------------------------------------------------------------
-# Fake Deepgram SDK
+# Fake Deepgram SDK (v6 API)
 # ---------------------------------------------------------------------------
 
-TRANSCRIPT_EVENT = "Transcript"
-UTTERANCE_END_EVENT = "UtteranceEnd"
+# EventType.MESSAGE is the string "message" in the real SDK.
+_EVENT_MESSAGE = "message"
+
+
+class _FakeEventType:
+    MESSAGE = _EVENT_MESSAGE
 
 
 class _FakeConnection:
-    """Fake Deepgram asynclive connection that records event handlers."""
+    """Fake AsyncV1SocketClient that records event handlers and exposes async mocks."""
 
     def __init__(self) -> None:
         self.handlers: dict[str, Any] = {}
-        self.finish: AsyncMock = AsyncMock()
-        self.send: AsyncMock = AsyncMock()
+        self.send_media: AsyncMock = AsyncMock()
+        self.send_close_stream: AsyncMock = AsyncMock()
 
-    def on(self, event: str, handler: Any) -> None:
-        self.handlers[event] = handler
+    def on(self, event: Any, handler: Any) -> None:
+        # Store by the string value so tests can look up by plain string.
+        self.handlers[str(event)] = handler
 
-    async def start(self, options: Any) -> bool:
-        return True
-
-
-class _FakeLiveOptions:
-    def __init__(self, **kwargs: Any) -> None:
+    async def start_listening(self) -> None:
+        # Returns immediately — simulates the connection being closed right away.
         pass
 
 
-class _FakeLiveTranscriptionEvents:
-    Transcript = TRANSCRIPT_EVENT
-    UtteranceEnd = UTTERANCE_END_EVENT
+class _FakeContextManager:
+    """Async context manager that yields the provided fake connection."""
+
+    def __init__(self, connection: _FakeConnection) -> None:
+        self._connection = connection
+
+    async def __aenter__(self) -> _FakeConnection:
+        return self._connection
+
+    async def __aexit__(self, *args: object) -> None:
+        pass
 
 
-def _make_fake_deepgram_module(connection: _FakeConnection) -> MagicMock:
-    """Return a MagicMock deepgram module wired to the given fake connection."""
+def _sys_modules_patch(fake_deepgram: MagicMock, fake_events: MagicMock) -> dict[str, Any]:
+    return {
+        "deepgram": fake_deepgram,
+        "deepgram.core": MagicMock(),
+        "deepgram.core.events": fake_events,
+    }
+
+
+def _make_fake_deepgram_module(connection: _FakeConnection) -> tuple[MagicMock, MagicMock]:
+    """Return ``(fake_deepgram, fake_events)`` wired to the given fake connection."""
+    fake_events = MagicMock()
+    fake_events.EventType = _FakeEventType
+
+    fake_listen_v1 = MagicMock()
+    fake_listen_v1.connect.return_value = _FakeContextManager(connection)
+
+    fake_listen = MagicMock()
+    fake_listen.v1 = fake_listen_v1
+
     fake_client_instance = MagicMock()
-    fake_client_instance.listen.asynclive.v.return_value = connection
+    fake_client_instance.listen = fake_listen
 
     fake_deepgram = MagicMock()
-    fake_deepgram.DeepgramClient.return_value = fake_client_instance
-    fake_deepgram.LiveOptions = _FakeLiveOptions
-    fake_deepgram.LiveTranscriptionEvents = _FakeLiveTranscriptionEvents
-    return fake_deepgram
+    fake_deepgram.AsyncDeepgramClient.return_value = fake_client_instance
+
+    return fake_deepgram, fake_events
 
 
-def _make_transcript_result(text: str, is_final: bool) -> MagicMock:
-    result = MagicMock()
-    result.channel.alternatives[0].transcript = text
-    result.is_final = is_final
-    return result
+def _make_results_message(text: str, is_final: bool) -> MagicMock:
+    """Build a fake ListenV1Results-style message."""
+    message = MagicMock()
+    message.type = "Results"
+    message.channel.alternatives[0].transcript = text
+    message.is_final = is_final
+    return message
+
+
+def _make_utterance_end_message() -> MagicMock:
+    """Build a fake ListenV1UtteranceEnd-style message."""
+    message = MagicMock()
+    message.type = "UtteranceEnd"
+    return message
 
 
 # ---------------------------------------------------------------------------
@@ -66,11 +100,11 @@ def _make_transcript_result(text: str, is_final: bool) -> MagicMock:
 async def test_on_transcript_fires_for_interim_result() -> None:
     """on_transcript must be called with (text, False) for interim transcripts."""
     connection = _FakeConnection()
-    fake_deepgram = _make_fake_deepgram_module(connection)
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
 
     received: list[tuple[str, bool]] = []
 
-    with patch.dict(sys.modules, {"deepgram": fake_deepgram}):
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
         from max_ai.voice.transcribe import DeepgramTranscriber
 
         transcriber = DeepgramTranscriber(api_key="test-key")
@@ -79,8 +113,8 @@ async def test_on_transcript_fires_for_interim_result() -> None:
             on_utterance_end=lambda: None,
         )
 
-    handler = connection.handlers[TRANSCRIPT_EVENT]
-    await handler(connection, _make_transcript_result("hello", False))
+    handler = connection.handlers[_EVENT_MESSAGE]
+    handler(_make_results_message("hello", False))
 
     assert received == [("hello", False)]
 
@@ -88,11 +122,11 @@ async def test_on_transcript_fires_for_interim_result() -> None:
 async def test_on_transcript_fires_for_final_result() -> None:
     """on_transcript must be called with (text, True) for final transcripts."""
     connection = _FakeConnection()
-    fake_deepgram = _make_fake_deepgram_module(connection)
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
 
     received: list[tuple[str, bool]] = []
 
-    with patch.dict(sys.modules, {"deepgram": fake_deepgram}):
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
         from max_ai.voice.transcribe import DeepgramTranscriber
 
         transcriber = DeepgramTranscriber(api_key="test-key")
@@ -101,8 +135,8 @@ async def test_on_transcript_fires_for_final_result() -> None:
             on_utterance_end=lambda: None,
         )
 
-    handler = connection.handlers[TRANSCRIPT_EVENT]
-    await handler(connection, _make_transcript_result("world", True))
+    handler = connection.handlers[_EVENT_MESSAGE]
+    handler(_make_results_message("world", True))
 
     assert received == [("world", True)]
 
@@ -110,11 +144,11 @@ async def test_on_transcript_fires_for_final_result() -> None:
 async def test_on_utterance_end_fires() -> None:
     """on_utterance_end must be called when Deepgram fires the UtteranceEnd event."""
     connection = _FakeConnection()
-    fake_deepgram = _make_fake_deepgram_module(connection)
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
 
     calls: list[bool] = []
 
-    with patch.dict(sys.modules, {"deepgram": fake_deepgram}):
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
         from max_ai.voice.transcribe import DeepgramTranscriber
 
         transcriber = DeepgramTranscriber(api_key="test-key")
@@ -123,33 +157,33 @@ async def test_on_utterance_end_fires() -> None:
             on_utterance_end=lambda: calls.append(True),
         )
 
-    handler = connection.handlers[UTTERANCE_END_EVENT]
-    await handler(connection, MagicMock())
+    handler = connection.handlers[_EVENT_MESSAGE]
+    handler(_make_utterance_end_message())
 
     assert calls == [True]
 
 
 async def test_stop_closes_connection() -> None:
-    """stop() must call finish() on the underlying Deepgram connection."""
+    """stop() must call send_close_stream() on the underlying Deepgram connection."""
     connection = _FakeConnection()
-    fake_deepgram = _make_fake_deepgram_module(connection)
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
 
-    with patch.dict(sys.modules, {"deepgram": fake_deepgram}):
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
         from max_ai.voice.transcribe import DeepgramTranscriber
 
         transcriber = DeepgramTranscriber(api_key="test-key")
         await transcriber.start(on_transcript=lambda t, f: None, on_utterance_end=lambda: None)
         await transcriber.stop()
 
-    connection.finish.assert_awaited_once()
+    connection.send_close_stream.assert_awaited_once()
 
 
 async def test_stop_is_idempotent() -> None:
     """stop() must not raise when called a second time after the connection is already closed."""
     connection = _FakeConnection()
-    fake_deepgram = _make_fake_deepgram_module(connection)
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
 
-    with patch.dict(sys.modules, {"deepgram": fake_deepgram}):
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
         from max_ai.voice.transcribe import DeepgramTranscriber
 
         transcriber = DeepgramTranscriber(api_key="test-key")
@@ -157,7 +191,7 @@ async def test_stop_is_idempotent() -> None:
         await transcriber.stop()
         await transcriber.stop()  # must not raise
 
-    assert connection.finish.await_count == 1
+    assert connection.send_close_stream.await_count == 1
 
 
 async def test_send_before_start_raises() -> None:
