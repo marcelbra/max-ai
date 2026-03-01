@@ -30,5 +30,4 @@ repos:
         additional_dependencies:
           - pydantic-settings
           - sqlalchemy[asyncio]
-          - types-spotipy
         args: [--ignore-missing-imports]
