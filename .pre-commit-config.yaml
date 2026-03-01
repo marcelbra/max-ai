@@ -30,4 +30,7 @@ repos:
         additional_dependencies:
           - pydantic-settings
           - sqlalchemy[asyncio]
+          - pytest
+          - pytest-asyncio
+          - jinja2
         args: [--ignore-missing-imports]
