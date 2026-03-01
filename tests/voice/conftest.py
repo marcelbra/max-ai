@@ -8,4 +8,4 @@ from unittest.mock import MagicMock
 # succeeds without raising OSError.  Individual tests then patch specific
 # attributes (e.g. ``max_ai.voice.recorder.sd.InputStream``) as usual.
 if "sounddevice" not in sys.modules:
-    sys.modules["sounddevice"] = MagicMock()  # type: ignore[assignment]
+    sys.modules["sounddevice"] = MagicMock()
