@@ -1,6 +1,7 @@
 """Integration tests for the voice loop's STT path (Deepgram vs ElevenLabs)."""
 
 import asyncio
+import sys
 from collections.abc import Callable
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -33,9 +34,9 @@ def _make_fake_record(on_chunk_data: bytes = b"\x00\x01\x02\x03") -> Callable[..
     return fake_record
 
 
-def _make_mocks() -> (
-    tuple[anthropic.AsyncAnthropic, ToolRegistry, ConversationService, "asyncio.Queue[Any]"]
-):
+def _make_mocks() -> tuple[
+    anthropic.AsyncAnthropic, ToolRegistry, ConversationService, "asyncio.Queue[Any]"
+]:
     client = cast(anthropic.AsyncAnthropic, MagicMock(spec=anthropic.AsyncAnthropic))
     registry = cast(ToolRegistry, MagicMock(spec=ToolRegistry))
     conversation_service = cast(ConversationService, MagicMock(spec=ConversationService))
@@ -95,6 +96,7 @@ async def test_loop_uses_deepgram_when_key_set() -> None:
 
     with (
         patch("max_ai.voice.loop.settings") as mock_settings,
+        patch.dict(sys.modules, {"deepgram": MagicMock()}),
         patch("max_ai.voice.transcribe.DeepgramTranscriber", FakeTranscriber),
         patch("max_ai.voice.recorder.record_until_enter", side_effect=_make_fake_record()),
         patch("max_ai.voice.loop._wait_for_key", new=AsyncMock(return_value="enter")),

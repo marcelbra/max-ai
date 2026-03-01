@@ -279,6 +279,15 @@ async def voice_chat_loop(
         )
         return
 
+    if settings.deepgram_api_key:
+        try:
+            import deepgram as _  # noqa: F401
+        except ImportError:
+            console.print(
+                "[red]Error:[/] deepgram-sdk is not installed. Run: uv sync --extra wake-word"
+            )
+            return
+
     conv_id = await conversation_service.create_conversation()
     web_search_tool = (
         AnthropicWebSearch(settings.web_search_max_uses) if settings.enable_web_search else None
