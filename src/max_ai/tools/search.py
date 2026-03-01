@@ -6,8 +6,6 @@ Two provider types are supported:
   servers; ``stop_reason`` is ``pause_turn`` and ``execute()`` is never called.
 - Local tools (e.g. Tavily, DuckDuckGo): the agent calls ``execute()`` locally;
   ``stop_reason`` is ``tool_use``.
-
-``is_server_tool`` tells the agent which path to take.
 """
 
 from abc import ABC, abstractmethod
@@ -21,12 +19,6 @@ class BaseWebSearchTool(ABC):
     @abstractmethod
     def tool_name(self) -> str:
         """The name the Anthropic API will use when invoking this tool."""
-        ...
-
-    @property
-    @abstractmethod
-    def is_server_tool(self) -> bool:
-        """True if Anthropic's servers execute the search (no local execute needed)."""
         ...
 
     @abstractmethod
@@ -50,10 +42,6 @@ class AnthropicWebSearch(BaseWebSearchTool):
     @property
     def tool_name(self) -> str:
         return "web_search"
-
-    @property
-    def is_server_tool(self) -> bool:
-        return True
 
     def api_definition(self) -> dict[str, Any]:
         return {

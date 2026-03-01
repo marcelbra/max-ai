@@ -4,7 +4,6 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import anthropic
-import pytest
 from anthropic.types import Message, TextBlock, ToolResultBlockParam, ToolUseBlock
 
 from max_ai.agent import Agent
@@ -12,7 +11,6 @@ from max_ai.tools.registry import ToolRegistry
 from max_ai.tools.search import BaseWebSearchTool
 
 
-@pytest.mark.asyncio
 async def test_agent_end_turn(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -33,7 +31,6 @@ async def test_agent_end_turn(
     assert agent.messages[1]["role"] == "assistant"
 
 
-@pytest.mark.asyncio
 async def test_agent_max_tokens(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -51,7 +48,6 @@ async def test_agent_max_tokens(
     assert any("max_tokens" in c for c in chunks)
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_use_then_end_turn(
     mock_anthropic_client: anthropic.AsyncAnthropic,
 ) -> None:
@@ -108,7 +104,6 @@ async def test_agent_tool_use_then_end_turn(
     assert len(agent.messages) == 4
 
 
-@pytest.mark.asyncio
 async def test_agent_on_tool_use_callback(mock_anthropic_client: anthropic.AsyncAnthropic) -> None:
     """on_tool_use callback is called with the names of executed tools."""
     from max_ai.tools.base import BaseTool, ToolDefinition
@@ -157,7 +152,6 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: anthropic.Async
     assert called_with == ["noop"]
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_exception_is_handled(
     mock_anthropic_client: anthropic.AsyncAnthropic,
 ) -> None:
@@ -213,7 +207,6 @@ async def test_agent_tool_exception_is_handled(
     assert "Error" in tool_result_content
 
 
-@pytest.mark.asyncio
 async def test_agent_unexpected_stop_reason(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -232,7 +225,6 @@ async def test_agent_unexpected_stop_reason(
     assert "some_future_reason" in chunks[0]
 
 
-@pytest.mark.asyncio
 async def test_agent_max_iterations(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -251,7 +243,6 @@ async def test_agent_max_iterations(
     assert "Max iterations" in chunks[0]
 
 
-@pytest.mark.asyncio
 async def test_agent_includes_web_search_tool(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -273,7 +264,6 @@ async def test_agent_includes_web_search_tool(
     assert web_search_tool.api_definition() in tools_passed
 
 
-@pytest.mark.asyncio
 async def test_agent_local_web_search_tool_is_executed(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
@@ -286,10 +276,6 @@ async def test_agent_local_web_search_tool_is_executed(
         @property
         def tool_name(self) -> str:
             return "local_search"
-
-        @property
-        def is_server_tool(self) -> bool:
-            return False
 
         def api_definition(self) -> dict[str, Any]:
             return {"name": self.tool_name, "input_schema": {}}

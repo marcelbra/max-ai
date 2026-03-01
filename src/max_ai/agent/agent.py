@@ -43,11 +43,7 @@ class Agent:
 
     async def _execute_tool(self, name: str, tool_input: dict[str, Any]) -> str:
         """Route a tool call to the web search tool or the registry."""
-        if (
-            self.web_search_tool is not None
-            and not self.web_search_tool.is_server_tool
-            and name == self.web_search_tool.tool_name
-        ):
+        if self.web_search_tool is not None and name == self.web_search_tool.tool_name:
             return await self.web_search_tool.execute(tool_input)
         return await self.registry.execute(name, tool_input)
 
