@@ -112,7 +112,7 @@ def rms_db(audio: np.ndarray) -> float:
     mean_sq = float(np.mean(audio.astype(np.float64) ** 2))
     if mean_sq == 0:
         return float("-inf")
-    return 20 * np.log10(np.sqrt(mean_sq) / 32768.0)
+    return float(20 * np.log10(np.sqrt(mean_sq) / 32768.0))
 
 
 def save_wav(audio: np.ndarray, path: Path) -> None:
@@ -123,7 +123,11 @@ def save_wav(audio: np.ndarray, path: Path) -> None:
 def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    device_label = f"device {settings.voice_input_device}" if settings.voice_input_device is not None else "default device"
+    device_label = (
+        f"device {settings.voice_input_device}"
+        if settings.voice_input_device is not None
+        else "default device"
+    )
 
     print("\nVoice Pipeline Dev Tool")
     print("=======================")
@@ -174,7 +178,9 @@ def main() -> None:
         print(f"  Duration   : {duration:.2f} s")
         print(f"  Level raw  : {raw_db:+.1f} dBFS")
         print(f"  Level post : {denoised_db:+.1f} dBFS  (Δ {denoised_db - raw_db:+.1f} dB vs raw)")
-        print(f"  Level norm : {normalized_db:+.1f} dBFS  (Δ {normalized_db - raw_db:+.1f} dB vs raw)")
+        print(
+            f"  Level norm : {normalized_db:+.1f} dBFS  (Δ {normalized_db - raw_db:+.1f} dB vs raw)"
+        )  # noqa: E501
         print(f"  Raw        → {raw_path.name}")
         print(f"  Denoised   → {denoised_path.name}")
         print(f"  Normalized → {normalized_path.name}")

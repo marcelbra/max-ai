@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # microphone stream opens.
     voice_input_device: int | None = None
 
+    # Wake word mode (Porcupine + Deepgram)
+    picovoice_access_key: str = ""
+    porcupine_keyword_path: str = ""  # empty = use built-in keyword
+    deepgram_api_key: str = ""
+    vad_silence_threshold_ms: int = 1800
+
     # Debug
     debug: bool = False
 

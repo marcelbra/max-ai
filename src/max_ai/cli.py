@@ -1,5 +1,6 @@
 """Entry point for the max-ai voice CLI."""
 
+import argparse
 import asyncio
 from typing import Any
 
@@ -19,7 +20,7 @@ from max_ai.tools import (
 from max_ai.voice.loop import voice_chat_loop
 
 
-async def main() -> None:
+async def main(wakeword_mode: bool = False) -> None:
     setup_langwatch()
 
     async with (
@@ -41,14 +42,33 @@ async def main() -> None:
             tool_registry.register(SpotifyTools())
 
         system_prompt = load_agent_prompt()
-        await voice_chat_loop(
-            client=client,
-            registry=tool_registry,
-            conversation_service=conversation_service,
-            event_queue=event_queue,
-            system_prompt=system_prompt,
-        )
+
+        if wakeword_mode:
+            from max_ai.voice.listen_loop import voice_listen_loop
+
+            await voice_listen_loop(
+                client=client,
+                registry=tool_registry,
+                conversation_service=conversation_service,
+                event_queue=event_queue,
+                system_prompt=system_prompt,
+            )
+        else:
+            await voice_chat_loop(
+                client=client,
+                registry=tool_registry,
+                conversation_service=conversation_service,
+                event_queue=event_queue,
+                system_prompt=system_prompt,
+            )
 
 
-def run_voice_cli() -> None:
-    asyncio.run(main())
+def run_cli() -> None:
+    parser = argparse.ArgumentParser(prog="max-ai")
+    parser.add_argument(
+        "--wakeword",
+        action="store_true",
+        help="Run in always-listening wake word mode",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(wakeword_mode=args.wakeword))
