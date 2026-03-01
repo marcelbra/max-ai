@@ -13,9 +13,9 @@ jobs:
             echo "Main branch — skipping branch name check."
             exit 0
           fi
-          if [[ ! "$branch" =~ ^(FEAT|OPT|FIX|REF):\ .+ ]]; then
+          if [[ ! "$branch" =~ ^(feat|opt|fix|ref)/.+ ]]; then
             echo "ERROR: Branch '$branch' does not follow the naming convention."
-            echo "Required format: FEAT: <name>, OPT: <name>, FIX: <name>, or REF: <name>"
+            echo "Required format: feat/<name>, opt/<name>, fix/<name>, or ref/<name>"
             exit 1
           fi
           echo "Branch name is valid."

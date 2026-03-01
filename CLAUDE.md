@@ -11,8 +11,25 @@ make test        # pytest
 
 `make lint-fix` auto-fixes most lint/format issues. Pre-commit hooks (`.pre-commit-config.yaml`) also enforce ruff and mypy on every `git commit` automatically — install them once via `make dev`.
 
-## After every feature
-Always commit and push to remote when a feature or fix is complete. No exceptions.
+## Development workflow
+
+### Bug fix
+1. Create a branch: `fix/<short-description>` (e.g. `fix/handle-empty-voice-input`)
+2. Fix the bug and add a regression test
+3. Open a PR titled `FIX: <short description>` — no issue required
+
+### Feature
+1. Create a GitHub issue titled `FEAT: <short description>` using the feature template (`.github/issue_template.md`) — include a full spec and acceptance criteria
+2. Create a branch: `feat/<short-description>` (e.g. `feat/spotify-queue-management`)
+3. Implement, then open a PR titled `FEAT: <short description>` that closes the issue (`closes #<number>`)
+
+### Branch naming
+Branches must follow the pattern `<prefix>/<description>` where prefix is one of: `feat`, `fix`, `opt`, `ref`.
+Issues and PR titles use the uppercase form: `FEAT:`, `FIX:`, `OPT:`, `REF:`.
+CI enforces the branch pattern. Direct pushes to `main` are blocked — all changes must go through a PR with passing CI.
+
+### After every change
+Always push and open a PR when work is complete. No exceptions.
 
 ## Database
 In development mode, tables are created via `create_all` (no Alembic migrations needed). Only use Alembic for production deployments.
