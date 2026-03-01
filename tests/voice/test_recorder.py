@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-import sounddevice as sd
 
 
 class _CapturingInputStream:
@@ -17,6 +16,8 @@ class _CapturingInputStream:
         _CapturingInputStream.captured = kwargs
 
     def __enter__(self) -> "_CapturingInputStream":
+        import sounddevice as sd
+
         callback = _CapturingInputStream.captured.get("callback")
         if callback is not None:
             chunk = np.zeros((160, 1), dtype=np.int16)
