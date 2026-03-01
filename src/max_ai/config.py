@@ -34,9 +34,16 @@ class Settings(BaseSettings):
     elevenlabs_tts_model: str = "eleven_turbo_v2_5"
     elevenlabs_stt_model: str = "scribe_v1"
     elevenlabs_stt_language: str = "en"  # ISO 639-1 code; passed to ElevenLabs STT
-    # Optional sounddevice output device index for TTS playback.
+
     # Run: python -c "import sounddevice; print(sounddevice.query_devices())" to list devices.
+    # Optional sounddevice output device index for TTS playback.
     tts_output_device: int | None = None
+
+    # Optional sounddevice input device index for voice recording.
+    # TIP: Set voice_input_device to your built-in mic (e.g. MacBook Pro Microphone) so that
+    # Bluetooth headphones stay on A2DP (high-quality) instead of switching to HFP when the
+    # microphone stream opens.
+    voice_input_device: int | None = None
 
     # Debug
     debug: bool = False

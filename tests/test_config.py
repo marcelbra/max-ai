@@ -32,3 +32,9 @@ def test_elevenlabs_defaults() -> None:
     assert s.elevenlabs_voice_id == "JBFqnCBsd6RMkjVDRZzb"
     assert s.elevenlabs_tts_model == "eleven_turbo_v2_5"
     assert s.elevenlabs_stt_language == "en"
+
+
+def test_voice_input_device_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAX_AI_VOICE_INPUT_DEVICE", "7")
+    s = Settings()
+    assert s.voice_input_device == 7

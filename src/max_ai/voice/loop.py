@@ -269,11 +269,21 @@ async def voice_chat_loop(
                 if prev_volume is not None:
                     await asyncio.to_thread(_set_spotify_volume, 20)
 
-            console.print(
-                "[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…"
-            )
+            console.print("[dim]Preparing microphone…[/]", end="\r")
+
+            def _on_recording_started() -> None:
+                console.print(
+                    "[bold yellow]● Recording[/] — press [bold]Enter[/] to stop,"
+                    " [bold]x[/] to quit…"
+                )
+
             try:
-                wav_bytes = await asyncio.to_thread(record_until_enter)
+                wav_bytes = await asyncio.to_thread(
+                    record_until_enter,
+                    16000,
+                    settings.voice_input_device,
+                    _on_recording_started,
+                )
             except VoiceExit:
                 if prev_volume is not None:
                     await asyncio.to_thread(_set_spotify_volume, prev_volume)

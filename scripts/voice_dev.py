@@ -5,7 +5,8 @@ Workflow per clip:
   1. Press Enter to start recording.
   2. Speak.
   3. Press Enter to stop.
-  4. Noise-reduction pipeline runs and both raw + denoised WAVs are saved.
+  4. Noise-reduction + normalization pipeline runs; raw, denoised, and
+     normalized WAVs are saved.
 
 Output goes to voice_dev/ in the project root. Press q + Enter to quit.
 """
@@ -24,6 +25,8 @@ import noisereduce as nr
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+
+from max_ai.config import settings
 
 OUTPUT_DIR = Path(__file__).parent.parent / "voice_dev"
 SAMPLE_RATE = 16_000
@@ -59,14 +62,26 @@ def _wait_for_enter() -> None:
 
 
 def record() -> tuple[np.ndarray, float]:
-    """Record until Enter; returns (audio int16 (N,1), duration_seconds)."""
+    """Record until Enter; returns (audio int16 (N,1), duration_seconds).
+
+    Prints the 'Recording' prompt only after the stream is open so the
+    indicator appears the instant audio capture begins.
+    """
     chunks: list[np.ndarray] = []
 
     def callback(indata: np.ndarray, frames: int, _time: Any, _status: sd.CallbackFlags) -> None:
         chunks.append(indata.copy())
 
     t0 = time.monotonic()
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", callback=callback):
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE,
+        channels=1,
+        dtype="int16",
+        device=settings.voice_input_device,
+        latency="low",
+        callback=callback,
+    ):
+        print("\n  Recording …  (press Enter to stop)", end=" ", flush=True)
         _wait_for_enter()
     duration = time.monotonic() - t0
 
@@ -77,7 +92,19 @@ def record() -> tuple[np.ndarray, float]:
 def denoise(audio: np.ndarray) -> np.ndarray:
     flat = audio.flatten().astype(np.float32) / 32768.0
     denoised = nr.reduce_noise(y=flat, sr=SAMPLE_RATE)
+    denoised = nr.reduce_noise(y=denoised, sr=SAMPLE_RATE)
+    denoised = np.nan_to_num(denoised)
     return (denoised * 32768.0).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
+
+
+def normalize(audio: np.ndarray, target_peak: float = 0.80, max_gain: float = 4.0) -> np.ndarray:
+    """Scale audio so the peak reaches target_peak of full int16 scale (capped at max_gain×)."""
+    flat = audio.flatten().astype(np.float32)
+    peak = np.abs(flat).max()
+    if peak == 0:
+        return audio
+    gain = min((target_peak * 32767.0) / peak, max_gain)
+    return (flat * gain).clip(-32768, 32767).astype(np.int16).reshape(-1, 1)
 
 
 def rms_db(audio: np.ndarray) -> float:
@@ -96,10 +123,12 @@ def save_wav(audio: np.ndarray, path: Path) -> None:
 def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    device_label = f"device {settings.voice_input_device}" if settings.voice_input_device is not None else "default device"
 
     print("\nVoice Pipeline Dev Tool")
     print("=======================")
     print(f"Output dir : {OUTPUT_DIR}")
+    print(f"Input      : {device_label}")
     print("Controls   : Enter = start/stop recording  |  q = quit\n")
 
     clip = 0
@@ -116,7 +145,7 @@ def main() -> None:
             print("\nBye.")
             break
 
-        print("\n  Recording ...  (press Enter to stop)", end=" ", flush=True)
+        print("  Preparing microphone …", end="\r", flush=True)
         audio, duration = record()
         print()
 
@@ -129,19 +158,26 @@ def main() -> None:
         save_wav(audio, raw_path)
         raw_db = rms_db(audio)
 
-        # --- Denoise ---
-        print("  Denoising ...", end=" ", flush=True)
+        # --- Denoise + normalize ---
+        print("  Denoising …", end=" ", flush=True)
         denoised = denoise(audio)
+        normalized = normalize(denoised)
         denoised_path = OUTPUT_DIR / f"{ts}_clip{clip:02d}_denoised.wav"
+        normalized_path = OUTPUT_DIR / f"{ts}_clip{clip:02d}_normalized.wav"
         save_wav(denoised, denoised_path)
-        denoised_db = rms_db(denoised)
+        save_wav(normalized, normalized_path)
         print("done.\n")
 
-        print(f"  Duration  : {duration:.2f} s")
-        print(f"  Level raw : {raw_db:+.1f} dBFS")
-        print(f"  Level post: {denoised_db:+.1f} dBFS  (Δ {denoised_db - raw_db:+.1f} dB)")
-        print(f"  Raw       → {raw_path.name}")
-        print(f"  Denoised  → {denoised_path.name}")
+        denoised_db = rms_db(denoised)
+        normalized_db = rms_db(normalized)
+
+        print(f"  Duration   : {duration:.2f} s")
+        print(f"  Level raw  : {raw_db:+.1f} dBFS")
+        print(f"  Level post : {denoised_db:+.1f} dBFS  (Δ {denoised_db - raw_db:+.1f} dB vs raw)")
+        print(f"  Level norm : {normalized_db:+.1f} dBFS  (Δ {normalized_db - raw_db:+.1f} dB vs raw)")
+        print(f"  Raw        → {raw_path.name}")
+        print(f"  Denoised   → {denoised_path.name}")
+        print(f"  Normalized → {normalized_path.name}")
         print()
 
 
