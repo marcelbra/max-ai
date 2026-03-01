@@ -14,14 +14,15 @@ make test        # pytest
 ## Development workflow
 
 ### Bug fix
-1. Create a branch: `fix/<short-description>` (e.g. `fix/handle-empty-voice-input`)
+1. **Always use a git worktree** — run `make worktree NAME=fix/<short-description>` (e.g. `make worktree NAME=fix/handle-empty-voice-input`). Open Claude Code inside the new worktree directory.
 2. Fix the bug and add a regression test
 3. Open a PR titled `FIX: <short description>` — no issue required
 
 ### Feature
 1. Create a GitHub issue titled `FEAT: <short description>` using the feature template (`.github/issue_template.md`) — include a full spec and acceptance criteria
-2. Create a branch: `feat/<short-description>` (e.g. `feat/spotify-queue-management`)
-3. Implement, then open a PR titled `FEAT: <short description>` that closes the issue (`closes #<number>`)
+2. **Always use a git worktree** — run `make worktree NAME=feat/<short-description>` (e.g. `make worktree NAME=feat/spotify-queue-management`). This creates an isolated working directory so multiple features can be developed in parallel without branch conflicts. Never implement a feature directly in the main checkout.
+3. Open Claude Code inside the new worktree directory (`cd ../<repo>-<name>`).
+4. Implement, then open a PR titled `FEAT: <short description>` that closes the issue (`closes #<number>`)
 
 ### Branch naming
 Branches must follow the pattern `<prefix>/<description>` where prefix is one of: `feat`, `fix`, `opt`, `ref`.
