@@ -88,6 +88,107 @@ async def _wait_for_key() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Agent and TTS helpers
+# ---------------------------------------------------------------------------
+
+
+async def _run_agent_turn(
+    client: anthropic.AsyncAnthropic,
+    registry: ToolRegistry,
+    messages: list[dict[str, Any]],
+    system_prompt: str,
+    user_text: str,
+    conv_id: str,
+) -> str | None:
+    """Run one agent turn and return the full response text, or None on error."""
+    response_chunks: list[str] = []
+    try:
+        with Live(
+            Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
+        ) as live:
+
+            def on_tool_use(names: list[str]) -> None:
+                label = ", ".join(names)
+                live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
+
+            async for chunk in trace_turn(
+                run(client, registry, messages, system_prompt, on_tool_use=on_tool_use),
+                user_input=user_text,
+                thread_id=conv_id,
+                system=system_prompt,
+            ):
+                response_chunks.append(chunk)
+    except anthropic.APIError as e:
+        console.print(f"[red]API error:[/] {e}")
+        return None
+    except Exception as e:
+        console.print(f"[red]Error:[/] {e}")
+        return None
+    return "".join(response_chunks)
+
+
+async def _speak_and_handle_interrupt(full_response: str) -> tuple[bool, bool, bytes]:
+    """Speak a response and handle user interrupts.
+
+    Returns ``(quit, auto_start, pcm_bytes)``.
+    """
+    from max_ai.voice.tts import speak
+
+    tts_stop = threading.Event()
+    console.print("[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]")
+    speak_task = asyncio.create_task(
+        speak(
+            full_response,
+            api_key=settings.elevenlabs_api_key,
+            voice_id=settings.elevenlabs_voice_id,
+            model_id=settings.elevenlabs_tts_model,
+            stop_event=tts_stop,
+        )
+    )
+    interrupt_task = asyncio.create_task(_wait_for_key())
+    try:
+        done, _ = await asyncio.wait(
+            {speak_task, interrupt_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        tts_stop.set()
+        speak_task.cancel()
+        interrupt_task.cancel()
+        for t in (speak_task, interrupt_task):
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
+        raise
+
+    if interrupt_task in done and speak_task not in done:
+        key = interrupt_task.result()
+        tts_stop.set()
+        try:
+            await speak_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        if key == "x":
+            console.print("[dim]Goodbye.[/]")
+            return True, False, b""
+        console.print("[dim]Interrupted.[/]")
+        return False, True, b""
+
+    interrupt_task.cancel()
+    try:
+        await interrupt_task
+    except asyncio.CancelledError:
+        pass
+    pcm_bytes = b""
+    try:
+        pcm_bytes = speak_task.result()
+    except Exception as e:
+        console.print(f"[yellow]TTS error (response shown above):[/] {e}")
+    return False, False, pcm_bytes
+
+
+# ---------------------------------------------------------------------------
 # Voice loop
 # ---------------------------------------------------------------------------
 
@@ -101,7 +202,6 @@ async def voice_chat_loop(
 ) -> None:
     from max_ai.voice.recorder import VoiceExit, record_until_enter
     from max_ai.voice.stt import transcribe
-    from max_ai.voice.tts import speak
 
     if not settings.elevenlabs_api_key:
         console.print(
@@ -125,6 +225,8 @@ async def voice_chat_loop(
     injected_text: str | None = None
 
     while True:
+        wav_bytes = b""
+
         if injected_text is None and not auto_start:
             try:
                 console.print(
@@ -153,228 +255,74 @@ async def voice_chat_loop(
         else:
             auto_start = False
 
+        user_text = ""
         if injected_text is not None:
             user_text = injected_text
             injected_text = None
-            console.print(f"\n[bold green]You[/] {user_text}")
-            messages.append({"role": "user", "content": user_text})
-            await store.append_message(conv_id, "user", user_text)
-            response_chunks: list[str] = []
-            try:
-                with Live(
-                    Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
-                ) as live:
+        else:
+            # Duck Spotify volume while recording
+            prev_volume: int | None = None
+            if settings.spotify_client_id and settings.spotify_client_secret:
+                prev_volume = await asyncio.to_thread(_get_spotify_volume)
+                if prev_volume is not None:
+                    await asyncio.to_thread(_set_spotify_volume, 20)
 
-                    def on_tool_use_bg(names: list[str]) -> None:
-                        label = ", ".join(names)
-                        live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
-
-                    async for chunk in trace_turn(
-                        run(client, registry, messages, system_prompt, on_tool_use=on_tool_use_bg),
-                        user_input=user_text,
-                        thread_id=conv_id,
-                        system=system_prompt,
-                    ):
-                        response_chunks.append(chunk)
-            except anthropic.APIError as e:
-                console.print(f"[red]API error:[/] {e}")
-                continue
-            except Exception as e:
-                console.print(f"[red]Error:[/] {e}")
-                continue
-
-            full_response = "".join(response_chunks)
-            console.print("\n[bold blue]Max[/]")
-            console.print(Markdown(full_response))
-            await store.append_message(conv_id, "assistant", full_response)
-
-            tts_stop = threading.Event()
             console.print(
-                "[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]"
+                "[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…"
             )
-            speak_task = asyncio.create_task(
-                speak(
-                    full_response,
-                    api_key=settings.elevenlabs_api_key,
-                    voice_id=settings.elevenlabs_voice_id,
-                    model_id=settings.elevenlabs_tts_model,
-                    stop_event=tts_stop,
-                )
-            )
-            interrupt_task = asyncio.create_task(_wait_for_key())
             try:
-                done_tts, _ = await asyncio.wait(
-                    {speak_task, interrupt_task},
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                tts_stop.set()
-                speak_task.cancel()
-                interrupt_task.cancel()
-                for t in (speak_task, interrupt_task):
-                    try:
-                        await t
-                    except (asyncio.CancelledError, Exception):
-                        pass
-                raise
-            if interrupt_task in done_tts and speak_task not in done_tts:
-                key = interrupt_task.result()
-                tts_stop.set()
-                try:
-                    await speak_task
-                except (asyncio.CancelledError, Exception):
-                    pass
-                if key == "x":
-                    console.print("[dim]Goodbye.[/]")
-                    break
-                auto_start = True
-                console.print("[dim]Interrupted.[/]")
-            else:
-                interrupt_task.cancel()
-                try:
-                    await interrupt_task
-                except asyncio.CancelledError:
-                    pass
-            continue
-
-        # Duck Spotify volume while recording
-        prev_volume: int | None = None
-        if settings.spotify_client_id and settings.spotify_client_secret:
-            prev_volume = await asyncio.to_thread(_get_spotify_volume)
-            if prev_volume is not None:
-                await asyncio.to_thread(_set_spotify_volume, 20)
-
-        # Record audio
-        console.print(
-            "[bold yellow]● Recording[/] — press [bold]Enter[/] to stop, [bold]x[/] to quit…"
-        )
-        try:
-            wav_bytes = await asyncio.to_thread(record_until_enter)
-        except VoiceExit:
-            if prev_volume is not None:
-                await asyncio.to_thread(_set_spotify_volume, prev_volume)
-            console.print("\n[dim]Goodbye.[/]")
-            break
-        except Exception as e:
-            if prev_volume is not None:
-                await asyncio.to_thread(_set_spotify_volume, prev_volume)
-            console.print(f"[red]Recording error:[/] {e}")
-            continue
-
-        if prev_volume is not None:
-            await asyncio.to_thread(_set_spotify_volume, prev_volume)
-
-        # Transcribe
-        with Live(Spinner("dots", text=" [dim]Transcribing…[/]"), console=console, transient=True):
-            try:
-                user_text = await transcribe(
-                    wav_bytes,
-                    api_key=settings.elevenlabs_api_key,
-                    model_id=settings.elevenlabs_stt_model,
-                    language_code=settings.elevenlabs_stt_language,
-                )
+                wav_bytes = await asyncio.to_thread(record_until_enter)
+            except VoiceExit:
+                if prev_volume is not None:
+                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                console.print("\n[dim]Goodbye.[/]")
+                break
             except Exception as e:
-                console.print(f"[red]STT error:[/] {e}")
+                if prev_volume is not None:
+                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                console.print(f"[red]Recording error:[/] {e}")
                 continue
 
-        if not user_text:
-            console.print("[dim]No speech detected, try again.[/]")
-            continue
+            if prev_volume is not None:
+                await asyncio.to_thread(_set_spotify_volume, prev_volume)
+
+            with Live(
+                Spinner("dots", text=" [dim]Transcribing…[/]"), console=console, transient=True
+            ):
+                try:
+                    user_text = await transcribe(
+                        wav_bytes,
+                        api_key=settings.elevenlabs_api_key,
+                        model_id=settings.elevenlabs_stt_model,
+                        language_code=settings.elevenlabs_stt_language,
+                    )
+                except Exception as e:
+                    console.print(f"[red]STT error:[/] {e}")
+                    continue
+
+            if not user_text:
+                console.print("[dim]No speech detected, try again.[/]")
+                continue
 
         console.print(f"\n[bold green]You[/] {user_text}")
-
         messages.append({"role": "user", "content": user_text})
         await store.append_message(conv_id, "user", user_text)
 
-        # Run agent
-        response_chunks = []
-        try:
-            with Live(
-                Spinner("dots", text=" [dim]Thinking…[/]"), console=console, transient=True
-            ) as live:
-
-                def on_tool_use(names: list[str]) -> None:
-                    label = ", ".join(names)
-                    live.update(Spinner("dots", text=f" [dim]⚙ {label}…[/]"))
-
-                async for chunk in trace_turn(
-                    run(client, registry, messages, system_prompt, on_tool_use=on_tool_use),
-                    user_input=user_text,
-                    thread_id=conv_id,
-                    system=system_prompt,
-                ):
-                    response_chunks.append(chunk)
-
-        except anthropic.APIError as e:
-            console.print(f"[red]API error:[/] {e}")
+        full_response = await _run_agent_turn(
+            client, registry, messages, system_prompt, user_text, conv_id
+        )
+        if full_response is None:
             continue
-        except Exception as e:
-            console.print(f"[red]Error:[/] {e}")
-            continue
-
-        full_response = "".join(response_chunks)
 
         console.print("\n[bold blue]Max[/]")
         console.print(Markdown(full_response))
-
         await store.append_message(conv_id, "assistant", full_response)
 
-        # Speak response
-        pcm_bytes = b""
-        tts_stop = threading.Event()
-        console.print(
-            "[dim]  ● Speaking — press [bold]Enter[/] to interrupt, [bold]x[/] to quit…[/]"
-        )
-        speak_task = asyncio.create_task(
-            speak(
-                full_response,
-                api_key=settings.elevenlabs_api_key,
-                voice_id=settings.elevenlabs_voice_id,
-                model_id=settings.elevenlabs_tts_model,
-                stop_event=tts_stop,
-            )
-        )
-        interrupt_task = asyncio.create_task(_wait_for_key())
-        tasks: set[asyncio.Task[Any]] = {speak_task, interrupt_task}
-        try:
-            done, _ = await asyncio.wait(
-                tasks,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            tts_stop.set()
-            speak_task.cancel()
-            interrupt_task.cancel()
-            for t in (speak_task, interrupt_task):
-                try:
-                    await t
-                except (asyncio.CancelledError, Exception):
-                    pass
-            raise
+        quit, should_auto_start, pcm_bytes = await _speak_and_handle_interrupt(full_response)
+        if quit:
+            break
+        auto_start = should_auto_start
 
-        if interrupt_task in done and speak_task not in done:  # type: ignore[comparison-overlap]
-            key = interrupt_task.result()
-            tts_stop.set()
-            try:
-                await speak_task
-            except (asyncio.CancelledError, Exception):
-                pass
-            if key == "x":
-                console.print("[dim]Goodbye.[/]")
-                break
-            auto_start = True
-            console.print("[dim]Interrupted.[/]")
-        else:
-            interrupt_task.cancel()
-            try:
-                await interrupt_task
-            except asyncio.CancelledError:
-                pass
-            try:
-                pcm_bytes = speak_task.result()
-            except Exception as e:
-                console.print(f"[yellow]TTS error (response shown above):[/] {e}")
-
-        if settings.debug and pcm_bytes:
+        if settings.debug and pcm_bytes and wav_bytes:
             stamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
             await asyncio.to_thread(save_debug_files, wav_bytes, pcm_bytes, stamp)
