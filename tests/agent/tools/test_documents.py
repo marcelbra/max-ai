@@ -16,12 +16,16 @@ async def document_tools(tmp_path):
 
 
 async def test_document_create(document_tools):
-    result = await document_tools.execute("document_create", {"title": "My Doc", "content": "Hello"})
+    result = await document_tools.execute(
+        "document_create", {"title": "My Doc", "content": "Hello"}
+    )
     assert "created" in result.lower()
 
 
 async def test_document_read(document_tools):
-    await document_tools.execute("document_create", {"title": "Read Me", "content": "contents here"})
+    await document_tools.execute(
+        "document_create", {"title": "Read Me", "content": "contents here"}
+    )
     result = await document_tools.execute("document_read", {"title": "Read Me"})
     assert "Read Me" in result
     assert "contents here" in result

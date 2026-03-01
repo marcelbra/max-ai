@@ -6,7 +6,10 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 _AGENT_DIR = Path(__file__).parent
-_env = Environment(loader=FileSystemLoader(str(_AGENT_DIR)), keep_trailing_newline=True)
+_env = Environment(
+    loader=FileSystemLoader(_AGENT_DIR),
+    keep_trailing_newline=True,
+)
 
 
 def load_agent_prompt() -> str:

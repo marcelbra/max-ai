@@ -39,9 +39,7 @@ def test_dispatch_unknown_tool() -> None:
 @pytest.mark.asyncio
 async def test_execute_wraps_exceptions_as_error_string() -> None:
     tool = CalendarTools()
-    with patch(
-        "max_ai.agent.tools.calendar._run_jxa", side_effect=RuntimeError("osascript error")
-    ):
+    with patch("max_ai.agent.tools.calendar._run_jxa", side_effect=RuntimeError("osascript error")):
         result = await tool.execute("calendar_list_calendars", {})
     assert "Calendar error" in result
 
