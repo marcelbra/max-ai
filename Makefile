@@ -1,4 +1,4 @@
-.PHONY: install dev lint lint-fix typecheck test voice voice-dev migrate migration setup-spotify setup-calendar clean worktree
+.PHONY: install dev lint lint-fix typecheck test voice voice-dev test-deepgram migrate migration setup-spotify setup-calendar clean worktree
 
 install:                    ## Install dependencies
 	uv sync
@@ -28,6 +28,9 @@ voice:                      ## Start the voice agent (STT → Agent → TTS)
 
 voice-dev:                  ## Dev tool: record, denoise, save raw + denoised WAVs
 	uv run python scripts/voice_dev.py
+
+test-deepgram:              ## Manual smoke test for Deepgram streaming transcription
+	uv run python scripts/test_deepgram.py
 
 migrate:                    ## Run database migrations
 	uv run alembic upgrade head

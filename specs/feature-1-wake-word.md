@@ -183,34 +183,7 @@ def _load_model(self) -> None:
 
 ### `src/max_ai/voice/transcribe.py`
 
-Deepgram streaming client. Opens a WebSocket when LISTENING starts, closes when utterance ends.
-
-```python
-class DeepgramTranscriber:
-    def __init__(self, api_key: str) -> None:
-        self._api_key = api_key
-        self._connection: Any | None = None  # deepgram LiveClient
-
-    async def start(
-        self,
-        on_transcript: Callable[[str, bool], None],
-        on_utterance_end: Callable[[], None],
-    ) -> None:
-        """Open Deepgram WebSocket. Calls on_transcript(text, is_final) for each result.
-        Calls on_utterance_end() when Deepgram fires UtteranceEnd event.
-
-        Options used:
-          model="nova-2", language="en", smart_format=True,
-          interim_results=True, utterance_end_ms=1500,
-          vad_events=True, encoding="linear16", sample_rate=16000
-        """
-
-    async def send(self, audio_chunk: bytes) -> None:
-        """Send raw int16 PCM bytes to Deepgram."""
-
-    async def stop(self) -> None:
-        """Close the WebSocket connection."""
-```
+See **[Feature 1a: Deepgram Streaming Transcription](feature-1a-deepgram-transcription.md)** — implement and merge that spec first.
 
 ---
 
@@ -296,21 +269,17 @@ Add fields:
 ```python
 picovoice_access_key: str = ""
 porcupine_keyword_path: str = ""   # empty = use built-in keyword
-deepgram_api_key: str = ""
+# deepgram_api_key already added in Feature 1a
 vad_silence_threshold_ms: int = 1800
 vad_min_words: int = 3
 ```
 
 ### `pyproject.toml`
 
-Add mypy overrides:
+Add mypy overrides (deepgram override already added in Feature 1a):
 ```toml
 [[tool.mypy.overrides]]
 module = ["pvporcupine", "pvporcupine.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["deepgram", "deepgram.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -318,7 +287,7 @@ module = ["torch", "torch.*"]
 ignore_missing_imports = true
 ```
 
-Add optional extras group:
+Extend the `wake-word` extras group (deepgram-sdk already added in Feature 1a):
 ```toml
 [project.optional-dependencies]
 wake-word = [
@@ -337,7 +306,7 @@ wake-word = [
 |---|---|---|
 | `MAX_AI_PICOVOICE_ACCESS_KEY` | Yes (wake word mode) | From console.picovoice.ai |
 | `MAX_AI_PORCUPINE_KEYWORD_PATH` | No | Path to custom .ppn file |
-| `MAX_AI_DEEPGRAM_API_KEY` | Yes (wake word mode) | From deepgram.com |
+| `MAX_AI_DEEPGRAM_API_KEY` | Yes (wake word mode) | Added in Feature 1a |
 | `MAX_AI_VAD_SILENCE_THRESHOLD_MS` | No | Default: 1800 |
 | `MAX_AI_VAD_MIN_WORDS` | No | Default: 3 |
 
@@ -372,10 +341,7 @@ wake-word = [
 - `update()` returns True after threshold exceeded
 - `reset()` clears accumulated silence
 
-**`tests/voice/test_transcribe.py`**
-- Mock Deepgram client — test `on_transcript` callback fires
-- Test `on_utterance_end` callback fires on UtteranceEnd event
-- Test `stop()` closes connection
+**`tests/voice/test_transcribe.py`** — see Feature 1a
 
 **`tests/voice/test_listen_loop.py`**
 - Mock all audio/network components

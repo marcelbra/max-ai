@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # LangWatch
     langwatch_api_key: str = ""
 
+    # Deepgram (wake-word / streaming transcription)
+    deepgram_api_key: str = ""
+
     # ElevenLabs (voice mode)
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George (default)

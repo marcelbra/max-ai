@@ -1,8 +1,10 @@
 """Voice chat loop and supporting helpers."""
 
 import asyncio
+import queue
 import sys
 import threading
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -188,6 +190,75 @@ async def _speak_and_handle_interrupt(full_response: str) -> tuple[bool, bool, b
 
 
 # ---------------------------------------------------------------------------
+# Deepgram streaming transcription helper
+# ---------------------------------------------------------------------------
+
+
+async def _transcribe_with_deepgram(
+    deepgram_api_key: str,
+    voice_input_device: int | None,
+    on_recording_started: Callable[[], None],
+) -> tuple[bytes, str]:
+    """Stream audio to Deepgram during push-to-talk recording.
+
+    Returns ``(wav_bytes, transcript)`` where ``wav_bytes`` is the processed WAV
+    from the recorder and ``transcript`` is the accumulated final-segment text.
+
+    Raises ``VoiceExit`` if the user presses 'x', or re-raises any recording
+    exception so the caller can handle Spotify volume restore and loop control.
+    """
+    from max_ai.voice.recorder import record_until_enter
+    from max_ai.voice.transcribe import DeepgramTranscriber
+
+    final_segments: list[str] = []
+    utterance_end_event = asyncio.Event()
+    chunk_queue: queue.Queue[bytes | None] = queue.Queue()
+
+    def on_transcript(text: str, is_final: bool) -> None:
+        if is_final and text:
+            final_segments.append(text)
+
+    def on_utterance_end() -> None:
+        utterance_end_event.set()
+
+    transcriber = DeepgramTranscriber(deepgram_api_key)
+    await transcriber.start(on_transcript=on_transcript, on_utterance_end=on_utterance_end)
+
+    async def _forward_chunks() -> None:
+        while True:
+            audio_bytes = await asyncio.to_thread(chunk_queue.get)
+            if audio_bytes is None:
+                break
+            await transcriber.send(audio_bytes)
+
+    forward_task = asyncio.create_task(_forward_chunks())
+
+    def _put_chunk(audio_bytes: bytes) -> None:
+        chunk_queue.put(audio_bytes)
+
+    try:
+        wav_bytes = await asyncio.to_thread(
+            record_until_enter, 16000, voice_input_device, on_recording_started, _put_chunk
+        )
+    except Exception:
+        chunk_queue.put(None)
+        await forward_task
+        await transcriber.stop()
+        raise
+
+    chunk_queue.put(None)
+    await forward_task
+    await transcriber.stop()
+
+    try:
+        await asyncio.wait_for(utterance_end_event.wait(), timeout=1.5)
+    except TimeoutError:
+        pass
+
+    return wav_bytes, " ".join(segment for segment in final_segments if segment)
+
+
+# ---------------------------------------------------------------------------
 # Voice loop
 # ---------------------------------------------------------------------------
 
@@ -207,6 +278,13 @@ async def voice_chat_loop(
             "[red]Error:[/] MAX_AI_ELEVENLABS_API_KEY is not set. Add it to your .env file."
         )
         return
+
+    if settings.deepgram_api_key:
+        try:
+            import deepgram  # noqa: F401
+        except ImportError:
+            console.print("[red]Error:[/] deepgram-sdk is not installed. Run: uv sync")
+            return
 
     conv_id = await conversation_service.create_conversation()
     web_search_tool = (
@@ -277,40 +355,61 @@ async def voice_chat_loop(
                     " [bold]x[/] to quit…"
                 )
 
-            try:
-                wav_bytes = await asyncio.to_thread(
-                    record_until_enter,
-                    16000,
-                    settings.voice_input_device,
-                    _on_recording_started,
-                )
-            except VoiceExit:
-                if prev_volume is not None:
-                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
-                console.print("\n[dim]Goodbye.[/]")
-                break
-            except Exception as e:
-                if prev_volume is not None:
-                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
-                console.print(f"[red]Recording error:[/] {e}")
-                continue
-
-            if prev_volume is not None:
-                await asyncio.to_thread(_set_spotify_volume, prev_volume)
-
-            with Live(
-                Spinner("dots", text=" [dim]Transcribing…[/]"), console=console, transient=True
-            ):
+            if settings.deepgram_api_key:
                 try:
-                    user_text = await transcribe(
-                        wav_bytes,
-                        api_key=settings.elevenlabs_api_key,
-                        model_id=settings.elevenlabs_stt_model,
-                        language_code=settings.elevenlabs_stt_language,
+                    wav_bytes, user_text = await _transcribe_with_deepgram(
+                        settings.deepgram_api_key,
+                        settings.voice_input_device,
+                        _on_recording_started,
                     )
+                except VoiceExit:
+                    if prev_volume is not None:
+                        await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                    console.print("\n[dim]Goodbye.[/]")
+                    break
                 except Exception as e:
-                    console.print(f"[red]STT error:[/] {e}")
+                    if prev_volume is not None:
+                        await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                    console.print(f"[red]Recording error:[/] {e}")
                     continue
+
+                if prev_volume is not None:
+                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
+            else:
+                try:
+                    wav_bytes = await asyncio.to_thread(
+                        record_until_enter,
+                        16000,
+                        settings.voice_input_device,
+                        _on_recording_started,
+                    )
+                except VoiceExit:
+                    if prev_volume is not None:
+                        await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                    console.print("\n[dim]Goodbye.[/]")
+                    break
+                except Exception as e:
+                    if prev_volume is not None:
+                        await asyncio.to_thread(_set_spotify_volume, prev_volume)
+                    console.print(f"[red]Recording error:[/] {e}")
+                    continue
+
+                if prev_volume is not None:
+                    await asyncio.to_thread(_set_spotify_volume, prev_volume)
+
+                with Live(
+                    Spinner("dots", text=" [dim]Transcribing…[/]"), console=console, transient=True
+                ):
+                    try:
+                        user_text = await transcribe(
+                            wav_bytes,
+                            api_key=settings.elevenlabs_api_key,
+                            model_id=settings.elevenlabs_stt_model,
+                            language_code=settings.elevenlabs_stt_language,
+                        )
+                    except Exception as e:
+                        console.print(f"[red]STT error:[/] {e}")
+                        continue
 
             if not user_text:
                 console.print("[dim]No speech detected, try again.[/]")

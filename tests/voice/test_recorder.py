@@ -97,6 +97,24 @@ def test_record_until_enter_raises_voice_exit_on_x() -> None:
             record_until_enter()
 
 
+def test_record_until_enter_calls_on_chunk() -> None:
+    """on_chunk must be called with the raw PCM bytes of each audio block."""
+    received: list[bytes] = []
+
+    with (
+        patch("max_ai.voice.recorder.sd.InputStream", _CapturingInputStream),
+        patch("max_ai.voice.recorder._read_key", return_value="enter"),
+        patch("max_ai.voice.recorder.nr.reduce_noise", side_effect=lambda y, sr: y),
+    ):
+        from max_ai.voice.recorder import record_until_enter
+
+        record_until_enter(on_chunk=lambda audio_bytes: received.append(audio_bytes))
+
+    assert len(received) >= 1
+    assert all(isinstance(chunk, bytes) for chunk in received)
+    assert len(received[0]) > 0
+
+
 def test_normalize_boosts_quiet_audio() -> None:
     """_normalize must scale quiet audio up toward the target peak."""
     from max_ai.voice.recorder import _normalize

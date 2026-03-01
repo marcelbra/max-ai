@@ -65,6 +65,7 @@ def record_until_enter(
     sample_rate: int = 16000,
     input_device: int | None = None,
     on_recording_started: Callable[[], None] | None = None,
+    on_chunk: Callable[[bytes], None] | None = None,
 ) -> bytes:
     """Record audio from the microphone until the user presses Enter.
 
@@ -79,11 +80,16 @@ def record_until_enter(
     Pass ``on_recording_started`` to receive a callback the instant the stream is open and
     capturing — use this to update UI so the "recording" indicator only appears once audio
     is actually being collected (stream initialization can take ~100–300 ms).
+
+    Pass ``on_chunk`` to receive raw int16 PCM bytes for each incoming audio block in real
+    time.  This is useful for streaming transcription (e.g. Deepgram).
     """
     chunks: list[np.ndarray] = []
 
     def callback(indata: np.ndarray, frames: int, time: Any, status: sd.CallbackFlags) -> None:
         chunks.append(indata.copy())
+        if on_chunk is not None:
+            on_chunk(indata.tobytes())
 
     with sd.InputStream(
         samplerate=sample_rate,
