@@ -28,7 +28,7 @@ class _CapturingInputStream:
         pass
 
 
-@pytest.mark.parametrize("input_device", [None, 3, 0])  # type: ignore[misc]
+@pytest.mark.parametrize("input_device", [None, 3, 0])
 def test_record_until_enter_passes_device_to_input_stream(input_device: int | None) -> None:
     """record_until_enter must forward input_device to sd.InputStream."""
     with (
@@ -95,6 +95,24 @@ def test_record_until_enter_raises_voice_exit_on_x() -> None:
     ):
         with pytest.raises(VoiceExit):
             record_until_enter()
+
+
+def test_record_until_enter_calls_on_chunk() -> None:
+    """on_chunk must be called with the raw PCM bytes of each audio block."""
+    received: list[bytes] = []
+
+    with (
+        patch("max_ai.voice.recorder.sd.InputStream", _CapturingInputStream),
+        patch("max_ai.voice.recorder._read_key", return_value="enter"),
+        patch("max_ai.voice.recorder.nr.reduce_noise", side_effect=lambda y, sr: y),
+    ):
+        from max_ai.voice.recorder import record_until_enter
+
+        record_until_enter(on_chunk=lambda audio_bytes: received.append(audio_bytes))
+
+    assert len(received) >= 1
+    assert all(isinstance(chunk, bytes) for chunk in received)
+    assert len(received[0]) > 0
 
 
 def test_normalize_boosts_quiet_audio() -> None:

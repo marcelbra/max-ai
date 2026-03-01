@@ -96,4 +96,4 @@ Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `
   - Read-only properties on the real type: `# type: ignore[misc]`
   - Method-attribute replacement: `# type: ignore[method-assign]`
   - Invalid-enum test values: `# type: ignore[assignment]`
-- `pytest.mark.asyncio` and `pytest.mark.parametrize` are untyped decorators; add `# type: ignore[misc]` to the decorated function. The pre-commit mypy hook runs on changed files only and will catch this even when `make typecheck` (full run with cache) does not.
+- `pytest.mark.asyncio` and `pytest.mark.parametrize` decorators no longer need `# type: ignore[misc]` — current pytest-asyncio ships typed stubs and `asyncio_mode = "auto"` is configured. Do not add `# type: ignore[misc]` to these decorators; mypy strict mode will flag it as an unused ignore.

@@ -63,7 +63,7 @@ def _make_transcript_result(text: str, is_final: bool) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_on_transcript_fires_for_interim_result() -> None:
     """on_transcript must be called with (text, False) for interim transcripts."""
     connection = _FakeConnection()
@@ -86,7 +86,7 @@ async def test_on_transcript_fires_for_interim_result() -> None:
     assert received == [("hello", False)]
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_on_transcript_fires_for_final_result() -> None:
     """on_transcript must be called with (text, True) for final transcripts."""
     connection = _FakeConnection()
@@ -109,7 +109,7 @@ async def test_on_transcript_fires_for_final_result() -> None:
     assert received == [("world", True)]
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_on_utterance_end_fires() -> None:
     """on_utterance_end must be called when Deepgram fires the UtteranceEnd event."""
     connection = _FakeConnection()
@@ -132,7 +132,7 @@ async def test_on_utterance_end_fires() -> None:
     assert calls == [True]
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_stop_closes_connection() -> None:
     """stop() must call finish() on the underlying Deepgram connection."""
     connection = _FakeConnection()
@@ -148,7 +148,7 @@ async def test_stop_closes_connection() -> None:
     connection.finish.assert_awaited_once()
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_stop_is_idempotent() -> None:
     """stop() must not raise when called a second time after the connection is already closed."""
     connection = _FakeConnection()
@@ -165,7 +165,7 @@ async def test_stop_is_idempotent() -> None:
     assert connection.finish.await_count == 1
 
 
-@pytest.mark.asyncio  # type: ignore[misc]
+@pytest.mark.asyncio
 async def test_send_before_start_raises() -> None:
     """send() must raise RuntimeError if called before start()."""
     from max_ai.voice.transcribe import DeepgramTranscriber
