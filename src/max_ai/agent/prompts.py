@@ -16,4 +16,4 @@ def load_agent_prompt() -> str:
     """Render the agent prompt template."""
     current_date = date.today().strftime("%B %d, %Y")
     template = _env.get_template("system_prompt.j2")
-    return template.render(current_date=current_date).strip()
+    return str(template.render(current_date=current_date)).strip()
