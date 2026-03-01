@@ -405,7 +405,12 @@ async def _dispatch(sp: spotipy.Spotify, name: str, tool_input: dict[str, Any]) 
     elif name == "spotify_queue":
         return _queue(sp, tool_input.get("query", ""))
     elif name == "spotify_search":
-        return _search(sp, tool_input.get("query", ""), tool_input.get("type", "track"), tool_input.get("limit", 5))
+        return _search(
+            sp,
+            tool_input.get("query", ""),
+            tool_input.get("type", "track"),
+            tool_input.get("limit", 5),
+        )
     elif name == "spotify_devices":
         return _devices(sp)
     elif name == "spotify_transfer":
@@ -416,12 +421,17 @@ async def _dispatch(sp: spotipy.Spotify, name: str, tool_input: dict[str, Any]) 
         return _playlist_tracks(sp, tool_input.get("playlist", ""), tool_input.get("limit", 20))
     elif name == "spotify_create_playlist":
         return _create_playlist(
-            sp, tool_input.get("name", ""), tool_input.get("description", ""), tool_input.get("public", False)
+            sp,
+            tool_input.get("name", ""),
+            tool_input.get("description", ""),
+            tool_input.get("public", False),
         )
     elif name == "spotify_add_to_playlist":
         return _add_to_playlist(sp, tool_input.get("playlist", ""), tool_input.get("query", ""))
     elif name == "spotify_remove_from_playlist":
-        return _remove_from_playlist(sp, tool_input.get("playlist", ""), tool_input.get("query", ""))
+        return _remove_from_playlist(
+            sp, tool_input.get("playlist", ""), tool_input.get("query", "")
+        )
     elif name == "spotify_like_track":
         return _like_track(sp, tool_input.get("query"))
     elif name == "spotify_saved_tracks":

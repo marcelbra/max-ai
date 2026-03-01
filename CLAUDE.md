@@ -40,3 +40,9 @@ Also apply this principle broadly: whenever you encounter a project-specific rec
 
 ## Running tests
 Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `uv sync` alone. `make test` handles this automatically via `uv sync --extra dev`. If running pytest directly, install them first with `uv sync --extra dev`, then use `uv run python -m pytest tests/ -v`.
+
+## Testing requirements
+- Every new feature must include tests covering its core behaviour.
+- Every bug fix must include a test that would have caught the bug.
+- When modifying existing code, check whether existing tests are affected and update them.
+- Tests must not hit real external services (use mocks or in-memory SQLite).

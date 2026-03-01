@@ -105,3 +105,156 @@ async def test_agent_tool_use_then_end_turn(
     assert chunks == ["Done!"]
     # messages should have: assistant (tool_use), user (tool_result), assistant (end_turn)
     assert len(messages) == 3
+
+
+@pytest.mark.asyncio
+async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> None:
+    """on_tool_use callback is called with the names of executed tools."""
+    from max_ai.agent import run
+    from max_ai.agent.tools.base import BaseTool, ToolDefinition
+
+    class NoopTool(BaseTool):
+        def definitions(self) -> list[ToolDefinition]:
+            return [
+                ToolDefinition(
+                    name="noop",
+                    description="Does nothing",
+                    input_schema={"type": "object", "properties": {}},
+                )
+            ]
+
+        async def execute(self, tool_name: str, tool_input: dict) -> str:
+            return "ok"
+
+    registry = ToolRegistry()
+    registry.register(NoopTool())
+
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.name = "noop"
+    tool_block.input = {}
+    tool_block.id = "t1"
+
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "Done"
+
+    tool_response = MagicMock()
+    tool_response.stop_reason = "tool_use"
+    tool_response.content = [tool_block]
+
+    final_response = MagicMock()
+    final_response.stop_reason = "end_turn"
+    final_response.content = [text_block]
+
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+
+    called_with: list[str] = []
+    messages: list = []
+    async for _ in run(
+        mock_anthropic_client,
+        registry,
+        messages,
+        "system",
+        on_tool_use=lambda names: called_with.extend(names),
+    ):
+        pass
+
+    assert called_with == ["noop"]
+
+
+@pytest.mark.asyncio
+async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock) -> None:
+    """When a tool raises, the exception is caught and passed back as an error string."""
+    from max_ai.agent import run
+    from max_ai.agent.tools.base import BaseTool, ToolDefinition
+
+    class BrokenTool(BaseTool):
+        def definitions(self) -> list[ToolDefinition]:
+            return [
+                ToolDefinition(
+                    name="broken",
+                    description="Always fails",
+                    input_schema={"type": "object", "properties": {}},
+                )
+            ]
+
+        async def execute(self, tool_name: str, tool_input: dict) -> str:
+            raise RuntimeError("tool exploded")
+
+    registry = ToolRegistry()
+    registry.register(BrokenTool())
+
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.name = "broken"
+    tool_block.input = {}
+    tool_block.id = "t1"
+
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "Handled"
+
+    tool_response = MagicMock()
+    tool_response.stop_reason = "tool_use"
+    tool_response.content = [tool_block]
+
+    final_response = MagicMock()
+    final_response.stop_reason = "end_turn"
+    final_response.content = [text_block]
+
+    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
+
+    messages: list = []
+    chunks = []
+    async for chunk in run(mock_anthropic_client, registry, messages, "system"):
+        chunks.append(chunk)
+
+    assert chunks == ["Handled"]
+    # The tool_result message (messages[1]) should contain the error, not crash
+    tool_result_content = messages[1]["content"][0]["content"]
+    assert "Error" in tool_result_content
+
+
+@pytest.mark.asyncio
+async def test_agent_unexpected_stop_reason(
+    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+) -> None:
+    """An unrecognised stop_reason yields a message and exits."""
+    from max_ai.agent import run
+
+    response = MagicMock()
+    response.stop_reason = "some_future_reason"
+    response.content = []
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+
+    messages: list = []
+    chunks = []
+    async for chunk in run(mock_anthropic_client, empty_registry, messages, "system"):
+        chunks.append(chunk)
+
+    assert len(chunks) == 1
+    assert "some_future_reason" in chunks[0]
+
+
+@pytest.mark.asyncio
+async def test_agent_max_iterations(
+    mock_anthropic_client: MagicMock, empty_registry: ToolRegistry
+) -> None:
+    """Agent yields a message when max_iterations is exhausted without end_turn."""
+    from max_ai.agent import run
+
+    response = MagicMock()
+    response.stop_reason = "pause_turn"
+    response.content = []
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)
+
+    messages: list = []
+    chunks = []
+    async for chunk in run(
+        mock_anthropic_client, empty_registry, messages, "system", max_iterations=2
+    ):
+        chunks.append(chunk)
+
+    assert len(chunks) == 1
+    assert "Max iterations" in chunks[0]
