@@ -2,6 +2,24 @@ name: CI
 on: [push, pull_request]
 
 jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch naming convention
+        run: |
+          branch="${{ github.head_ref || github.ref_name }}"
+          echo "Branch: $branch"
+          if [[ "$branch" == "main" ]]; then
+            echo "Main branch — skipping branch name check."
+            exit 0
+          fi
+          if [[ ! "$branch" =~ ^(FEAT|OPT|FIX|REF):\ .+ ]]; then
+            echo "ERROR: Branch '$branch' does not follow the naming convention."
+            echo "Required format: FEAT: <name>, OPT: <name>, FIX: <name>, or REF: <name>"
+            exit 1
+          fi
+          echo "Branch name is valid."
+
   check:
     runs-on: ubuntu-latest
     steps:

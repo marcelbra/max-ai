@@ -6,6 +6,7 @@ install:                    ## Install dependencies
 dev:                        ## Install with dev dependencies
 	uv sync --all-extras
 	uv run pre-commit install
+	uv run pre-commit install --hook-type pre-push
 
 lint:                       ## Run ruff linter + formatter check
 	uv run ruff check src/ tests/
