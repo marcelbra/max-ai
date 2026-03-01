@@ -31,6 +31,7 @@ async def speak(
     voice_id: str,
     model_id: str = "eleven_turbo_v2_5",
     stop_event: threading.Event | None = None,
+    output_device: int | None = None,
 ) -> bytes:
     """Convert text to speech via ElevenLabs and play it through the speakers.
 
@@ -85,6 +86,7 @@ async def speak(
             samplerate=_SAMPLE_RATE,
             channels=1,
             dtype="int16",
+            device=output_device,
             callback=callback,
             finished_callback=done.set,
         ):

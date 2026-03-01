@@ -141,6 +141,7 @@ async def _speak_and_handle_interrupt(full_response: str) -> tuple[bool, bool, b
             voice_id=settings.elevenlabs_voice_id,
             model_id=settings.elevenlabs_tts_model,
             stop_event=tts_stop,
+            output_device=settings.tts_output_device,
         )
     )
     interrupt_task = asyncio.create_task(_wait_for_key())
