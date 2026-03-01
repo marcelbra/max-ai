@@ -367,9 +367,9 @@ class SpotifyTools(BaseTool):
             return f"Spotify error: {e}"
 
 
-async def _dispatch(sp: spotipy.Spotify, name: str, inp: dict[str, Any]) -> str:
+async def _dispatch(sp: spotipy.Spotify, name: str, tool_input: dict[str, Any]) -> str:
     if name == "spotify_play":
-        return _play(sp, inp.get("query", ""), inp.get("type", "track"))
+        return _play(sp, tool_input.get("query", ""), tool_input.get("type", "track"))
     elif name == "spotify_pause":
         sp.pause_playback()
         return "Paused."
@@ -383,53 +383,53 @@ async def _dispatch(sp: spotipy.Spotify, name: str, inp: dict[str, Any]) -> str:
         sp.previous_track()
         return "Went back to previous track."
     elif name == "spotify_volume":
-        level = int(inp["level"])
+        level = int(tool_input["level"])
         sp.volume(level)
         return f"Volume set to {level}%."
     elif name == "spotify_shuffle":
-        enabled = bool(inp["enabled"])
+        enabled = bool(tool_input["enabled"])
         sp.shuffle(enabled)
         return f"Shuffle {'enabled' if enabled else 'disabled'}."
     elif name == "spotify_repeat":
-        mode = inp["mode"]
+        mode = tool_input["mode"]
         sp.repeat(mode)
         return f"Repeat set to '{mode}'."
     elif name == "spotify_seek":
-        position_ms = int(inp["position_seconds"]) * 1000
+        position_ms = int(tool_input["position_seconds"]) * 1000
         sp.seek_track(position_ms)
-        return f"Seeked to {inp['position_seconds']}s."
+        return f"Seeked to {tool_input['position_seconds']}s."
     elif name == "spotify_now_playing":
         return _now_playing(sp)
     elif name == "spotify_get_queue":
         return _get_queue(sp)
     elif name == "spotify_queue":
-        return _queue(sp, inp.get("query", ""))
+        return _queue(sp, tool_input.get("query", ""))
     elif name == "spotify_search":
-        return _search(sp, inp.get("query", ""), inp.get("type", "track"), inp.get("limit", 5))
+        return _search(sp, tool_input.get("query", ""), tool_input.get("type", "track"), tool_input.get("limit", 5))
     elif name == "spotify_devices":
         return _devices(sp)
     elif name == "spotify_transfer":
-        return _transfer(sp, inp.get("device_name", ""))
+        return _transfer(sp, tool_input.get("device_name", ""))
     elif name == "spotify_list_playlists":
-        return _list_playlists(sp, inp.get("limit", 20))
+        return _list_playlists(sp, tool_input.get("limit", 20))
     elif name == "spotify_playlist_tracks":
-        return _playlist_tracks(sp, inp.get("playlist", ""), inp.get("limit", 20))
+        return _playlist_tracks(sp, tool_input.get("playlist", ""), tool_input.get("limit", 20))
     elif name == "spotify_create_playlist":
         return _create_playlist(
-            sp, inp.get("name", ""), inp.get("description", ""), inp.get("public", False)
+            sp, tool_input.get("name", ""), tool_input.get("description", ""), tool_input.get("public", False)
         )
     elif name == "spotify_add_to_playlist":
-        return _add_to_playlist(sp, inp.get("playlist", ""), inp.get("query", ""))
+        return _add_to_playlist(sp, tool_input.get("playlist", ""), tool_input.get("query", ""))
     elif name == "spotify_remove_from_playlist":
-        return _remove_from_playlist(sp, inp.get("playlist", ""), inp.get("query", ""))
+        return _remove_from_playlist(sp, tool_input.get("playlist", ""), tool_input.get("query", ""))
     elif name == "spotify_like_track":
-        return _like_track(sp, inp.get("query"))
+        return _like_track(sp, tool_input.get("query"))
     elif name == "spotify_saved_tracks":
-        return _saved_tracks(sp, inp.get("limit", 20))
+        return _saved_tracks(sp, tool_input.get("limit", 20))
     elif name == "spotify_recent":
-        return _recent(sp, inp.get("limit", 10))
+        return _recent(sp, tool_input.get("limit", 10))
     elif name == "spotify_artist_top_tracks":
-        return _artist_top_tracks(sp, inp.get("artist", ""))
+        return _artist_top_tracks(sp, tool_input.get("artist", ""))
     return f"Unknown Spotify tool: {name}"
 
 
