@@ -1,5 +1,7 @@
 """Tests for ToolRegistry."""
 
+from typing import Any
+
 import pytest
 
 from max_ai.tools.base import BaseTool, ToolDefinition
@@ -20,7 +22,7 @@ class SimpleTool(BaseTool):
             )
         ]
 
-    async def execute(self, tool_name: str, tool_input: dict) -> str:
+    async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         return f"Hello, {tool_input['name']}!"
 
 

@@ -1,5 +1,6 @@
 """Tests for the Agent class."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -68,7 +69,7 @@ async def test_agent_tool_use_then_end_turn(
                 )
             ]
 
-        async def execute(self, tool_name: str, tool_input: dict) -> str:
+        async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
             return f"echoed: {tool_input['text']}"
 
     registry = ToolRegistry()
@@ -119,7 +120,7 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: MagicMock) -> N
                 )
             ]
 
-        async def execute(self, tool_name: str, tool_input: dict) -> str:
+        async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
             return "ok"
 
     registry = ToolRegistry()
@@ -168,7 +169,7 @@ async def test_agent_tool_exception_is_handled(mock_anthropic_client: MagicMock)
                 )
             ]
 
-        async def execute(self, tool_name: str, tool_input: dict) -> str:
+        async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
             raise RuntimeError("tool exploded")
 
     registry = ToolRegistry()

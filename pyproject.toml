@@ -53,7 +53,7 @@ ignore = ["B008"]
 strict = true
 python_version = "3.12"
 mypy_path = "src"
-packages = ["max_ai"]
+files = ["src/max_ai", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["spotipy", "spotipy.*", "soundfile", "sounddevice", "noisereduce"]

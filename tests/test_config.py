@@ -1,5 +1,7 @@
 """Tests for Settings."""
 
+import pytest
+
 from max_ai.config import Settings
 
 
@@ -17,7 +19,7 @@ def test_spotify_redirect_uri_default() -> None:
     assert s.spotify_redirect_uri == "http://127.0.0.1:8888/callback"
 
 
-def test_env_prefix_override(monkeypatch) -> None:
+def test_env_prefix_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MAX_AI_MODEL", "claude-opus-4-6")
     monkeypatch.setenv("MAX_AI_MAX_TOKENS", "8192")
     s = Settings()

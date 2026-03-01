@@ -16,7 +16,7 @@ lint-fix:                   ## Auto-fix lint issues
 	uv run ruff format src/ tests/
 
 typecheck:                  ## Run mypy
-	uv run mypy src/
+	uv run mypy
 
 test:                       ## Run tests
 	uv sync --extra dev
