@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import anthropic
 import pytest
-from anthropic.types import ContentBlock, Message, TextBlock, ToolResultBlockParam, ToolUseBlock
+from anthropic.types import Message, TextBlock, ToolResultBlockParam, ToolUseBlock
 
 from max_ai.agent import Agent
 from max_ai.tools.registry import ToolRegistry
@@ -158,7 +158,9 @@ async def test_agent_on_tool_use_callback(mock_anthropic_client: anthropic.Async
 
 
 @pytest.mark.asyncio
-async def test_agent_tool_exception_is_handled(mock_anthropic_client: anthropic.AsyncAnthropic) -> None:
+async def test_agent_tool_exception_is_handled(
+    mock_anthropic_client: anthropic.AsyncAnthropic,
+) -> None:
     """When a tool raises, the exception is caught and passed back as an error string."""
     from max_ai.tools.base import BaseTool, ToolDefinition
 

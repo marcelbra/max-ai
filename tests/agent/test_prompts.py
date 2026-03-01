@@ -2,9 +2,10 @@
 
 from datetime import date
 
+from max_ai.agent.prompts import load_agent_prompt
+
 
 def test_load_agent_prompt_returns_nonempty_string() -> None:
-    from max_ai.agent.prompts import load_agent_prompt
 
     prompt = load_agent_prompt()
     assert isinstance(prompt, str)
