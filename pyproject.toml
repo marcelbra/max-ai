@@ -33,6 +33,7 @@ wake-word = [
     "pvporcupine>=3.0",
     "deepgram-sdk>=3.0,<4.0",
     "torch>=2.0",
+    "torchaudio>=2.0",
     "numpy>=1.24",
 ]
 
