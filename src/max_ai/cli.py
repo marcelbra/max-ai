@@ -11,6 +11,7 @@ from max_ai.voice.loop import voice_chat_loop
 
 
 async def main() -> None:
+    from max_ai.agent.tools.alarm import AlarmTool
     from max_ai.agent.tools.documents import DocumentTools
     from max_ai.agent.tools.spotify import SpotifyTools
     from max_ai.agent.tools.timer import TimerTool
@@ -37,6 +38,7 @@ async def main() -> None:
 
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     registry.register(TimerTool(event_queue))
+    registry.register(AlarmTool())
 
     if settings.spotify_client_id and settings.spotify_client_secret:
         registry.register(SpotifyTools())
