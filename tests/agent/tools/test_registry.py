@@ -1,4 +1,4 @@
-"""Tests for the tool layer."""
+"""Tests for ToolRegistry."""
 
 import pytest
 
@@ -52,15 +52,3 @@ async def test_registry_execute_unknown_tool() -> None:
     registry = ToolRegistry()
     result = await registry.execute("nonexistent", {})
     assert "unknown tool" in result
-
-
-def test_tool_definition_to_api_dict() -> None:
-    defn = ToolDefinition(
-        name="test",
-        description="A test tool",
-        input_schema={"type": "object", "properties": {}},
-    )
-    d = defn.to_api_dict()
-    assert d["name"] == "test"
-    assert d["description"] == "A test tool"
-    assert "input_schema" in d
