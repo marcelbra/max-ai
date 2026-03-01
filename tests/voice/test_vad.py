@@ -95,6 +95,23 @@ def test_reset_clears_accumulated_silence() -> None:
     assert result is False
 
 
+def test_reset_calls_model_reset_states() -> None:
+    """reset() calls reset_states() on the Silero model to clear LSTM hidden state."""
+    _install_torch_stub(speech_confidence=0.0)
+    _force_reimport()
+    from max_ai.voice.vad import VoiceActivityDetector
+
+    vad = VoiceActivityDetector(silence_threshold_ms=50, sample_rate=16000)
+    chunk = _silent_chunk(160)
+    vad.update(chunk)  # forces model to load
+
+    assert vad._model is not None
+    vad._model.reset_states = MagicMock()
+    vad.reset()
+
+    vad._model.reset_states.assert_called_once()
+
+
 def test_speech_resets_silence_counter() -> None:
     """Detecting speech resets the silence counter."""
     # Start silent, then speech detected, then silent again

@@ -48,5 +48,7 @@ class VoiceActivityDetector:
         return self._consecutive_silence_ms >= self._silence_threshold_ms
 
     def reset(self) -> None:
-        """Reset the consecutive silence counter."""
+        """Reset the consecutive silence counter and the model's internal state."""
         self._consecutive_silence_ms = 0.0
+        if self._model is not None:
+            self._model.reset_states()

@@ -74,6 +74,7 @@ async def voice_listen_loop(
         word_count = len(accumulated_transcript.split())
         if word_count < settings.vad_min_words:
             console.print("[dim]Too short, ignoring.[/]")
+            await transcriber.stop()
             state_machine.transition(AssistantState.IDLE)
             return
 

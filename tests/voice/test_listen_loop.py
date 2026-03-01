@@ -155,6 +155,7 @@ async def test_short_transcript_returns_to_idle() -> None:
     async def _handle_utterance_end() -> None:
         word_count = len(accumulated_transcript.split())
         if word_count < 3:
+            await transcriber.stop()
             state_machine.transition(AssistantState.IDLE)
             return
         await transcriber.stop()
@@ -163,7 +164,7 @@ async def test_short_transcript_returns_to_idle() -> None:
     await _handle_utterance_end()
 
     assert state_machine.state == AssistantState.IDLE
-    transcriber.stop.assert_not_called()
+    transcriber.stop.assert_called_once()
     assert AssistantState.PROCESSING not in transitions
 
 
