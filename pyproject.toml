@@ -70,6 +70,14 @@ ignore_missing_imports = true
 module = ["langwatch", "langwatch.*"]
 follow_imports = "skip"
 
+[[tool.mypy.overrides]]
+module = ["tests", "tests.*"]
+# pytest decorators (@pytest.mark.parametrize) are untyped when mypy runs
+# on changed files only (pre-commit hook, no cache); the # type: ignore[misc]
+# suppresses that error.  The full cached run sees them as typed, making the
+# ignore "unused" — so we disable the unused-ignore check for test modules.
+disable_error_code = ["unused-ignore"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

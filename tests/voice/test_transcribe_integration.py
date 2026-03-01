@@ -6,7 +6,6 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anthropic
-import pytest
 
 from max_ai.db import ConversationService
 from max_ai.tools.registry import ToolRegistry
@@ -51,7 +50,6 @@ def _make_mocks() -> tuple[
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_loop_uses_deepgram_when_key_set() -> None:
     """When deepgram_api_key is set, the loop must use DeepgramTranscriber for STT."""
     on_transcript_callback: Callable[[str, bool], None] | None = None
@@ -125,7 +123,6 @@ async def test_loop_uses_deepgram_when_key_set() -> None:
     assert captured_user_text == ["hello world"]
 
 
-@pytest.mark.asyncio
 async def test_loop_falls_back_to_elevenlabs_when_no_deepgram_key() -> None:
     """When deepgram_api_key is empty, the loop must call the ElevenLabs transcribe()."""
     elevenlabs_transcribe_called = False
