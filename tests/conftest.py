@@ -14,7 +14,7 @@ def empty_registry() -> ToolRegistry:
 
 @pytest.fixture
 def mock_anthropic_client() -> MagicMock:
-    client = MagicMock()
+    client: MagicMock = MagicMock()
     client.messages = MagicMock()
     client.messages.create = AsyncMock()
     return client

@@ -18,6 +18,7 @@ from max_ai.config import settings
 from max_ai.db import ConversationService
 from max_ai.monitoring.langwatch import trace_turn
 from max_ai.tools.registry import ToolRegistry
+from max_ai.tools.search import AnthropicWebSearch
 from max_ai.voice.debug import save_debug_files
 
 console = Console()
@@ -207,7 +208,10 @@ async def voice_chat_loop(
         return
 
     conv_id = await conversation_service.create_conversation()
-    agent = Agent(client, registry, system_prompt)
+    web_search_tool = (
+        AnthropicWebSearch(settings.web_search_max_uses) if settings.enable_web_search else None
+    )
+    agent = Agent(client, registry, system_prompt, web_search_tool=web_search_tool)
 
     console.print(
         Panel(

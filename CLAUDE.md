@@ -65,3 +65,4 @@ Dev dependencies (pytest, ruff, mypy) are optional extras and not installed by `
 - Every bug fix must include a test that would have caught the bug.
 - When modifying existing code, check whether existing tests are affected and update them.
 - Tests must not hit real external services (use mocks or in-memory SQLite).
+- All local `MagicMock()` variable assignments must include an explicit type annotation: `name: MagicMock = MagicMock()`. Never leave them untyped.
