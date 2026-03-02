@@ -65,6 +65,9 @@ async def speak(
     audio = _pitch_shift(np.frombuffer(pcm_bytes, dtype=np.int16))
 
     def _play(thread_stop_event: threading.Event | None) -> None:
+        device_info = sd.query_devices(output_device, "output")
+        channel_count = max(1, min(int(device_info["max_output_channels"]), 2))
+
         position = 0
         done = threading.Event()
 
@@ -80,14 +83,16 @@ async def speak(
                 outdata[:] = 0
                 raise sd.CallbackStop
             frames_to_write = min(frames, remaining)
-            outdata[:frames_to_write, 0] = audio[position : position + frames_to_write]
+            chunk = audio[position : position + frames_to_write]
+            for channel_index in range(channel_count):
+                outdata[:frames_to_write, channel_index] = chunk
             if frames_to_write < frames:
                 outdata[frames_to_write:] = 0
             position += frames_to_write
 
         with sd.OutputStream(
             samplerate=_SAMPLE_RATE,
-            channels=1,
+            channels=channel_count,
             dtype="int16",
             device=output_device,
             callback=callback,

@@ -1,39 +1,10 @@
-"""Wake-word detection components.
-
-WakeWordDetector wraps Porcupine (pvporcupine, lazy import).
-KeyboardWakeWordDetector is the push-to-talk fallback: Enter key fires
-WakeWordDetected, so the orchestrator is unchanged.
-"""
+"""Wake-word detection via Porcupine (pvporcupine, lazy import)."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import sys
-from collections.abc import Callable
-
-from max_ai.voice.events import EventBus, WakeWordDetected
 
 _logger = logging.getLogger(__name__)
-
-
-def _make_key_press_handler(future: asyncio.Future[str]) -> Callable[[], None]:
-    """Return a stdin reader callback bound to a specific future.
-
-    Extracted to module level to satisfy B023 (function in loop must not
-    capture loop variables by reference).
-    """
-
-    def _on_key_press() -> None:
-        character = sys.stdin.read(1)
-        if character in ("\n", "\r"):
-            if not future.done():
-                future.set_result("enter")
-        elif character.lower() == "x":
-            if not future.done():
-                future.set_result("x")
-
-    return _on_key_press
 
 
 class WakeWordDetector:
@@ -52,17 +23,28 @@ class WakeWordDetector:
             )
         else:
             self._porcupine = pvporcupine.create(access_key=access_key, keywords=["porcupine"])
+        self._buffer: bytes = b""
 
     def process(self, audio_frame: bytes) -> bool:
-        """Feed exactly frame_length int16 samples. Returns True on detection."""
+        """Buffer incoming bytes and call _porcupine.process once per full frame.
+
+        Audio chunks from sounddevice may be smaller than frame_length, so we
+        accumulate samples until we have exactly frame_length int16 values, then
+        process all complete frames and return True if any triggered detection.
+        """
         import struct
 
-        samples_count = len(audio_frame) // 2
-        samples = list(struct.unpack(f"{samples_count}h", audio_frame))
-        result: int = self._porcupine.process(samples)
-        detected = result >= 0
-        if detected:
-            _logger.debug("wake word detected")
+        self._buffer += audio_frame
+        required_bytes = self.frame_length * 2
+        detected = False
+        while len(self._buffer) >= required_bytes:
+            chunk = self._buffer[:required_bytes]
+            self._buffer = self._buffer[required_bytes:]
+            samples = list(struct.unpack(f"{self.frame_length}h", chunk))
+            result: int = self._porcupine.process(samples)
+            if result >= 0:
+                _logger.debug("wake word detected")
+                detected = True
         return detected
 
     @property
@@ -77,39 +59,3 @@ class WakeWordDetector:
 
     def close(self) -> None:
         self._porcupine.delete()
-
-
-class KeyboardWakeWordDetector:
-    """Push-to-talk fallback: Enter key triggers WakeWordDetected.
-
-    Runs as a background task while the orchestrator is in IDLE state.
-    Pressing Enter puts WakeWordDetected onto the bus.
-    Pressing 'x' puts None (signals shutdown) — callers must handle it.
-    """
-
-    async def run(self, bus: EventBus) -> None:
-        """Listen for Enter/x in a non-blocking way.  Runs until cancelled."""
-        _logger.debug("keyboard wake-word detector start")
-        import termios
-        import tty
-
-        loop = asyncio.get_running_loop()
-
-        while True:
-            future: asyncio.Future[str] = loop.create_future()
-            fd = sys.stdin.fileno()
-            old_settings = termios.tcgetattr(fd)
-            tty.setcbreak(fd)
-
-            loop.add_reader(fd, _make_key_press_handler(future))
-            try:
-                key = await future
-            finally:
-                loop.remove_reader(fd)
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-            if key == "enter":
-                await bus.put(WakeWordDetected())
-            elif key == "x":
-                # Signal shutdown by putting a sentinel; orchestrator handles it.
-                return
