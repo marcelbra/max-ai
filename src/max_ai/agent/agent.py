@@ -3,16 +3,16 @@ Anthropic agentic loop encapsulated in an Agent class.
 
 stop_reason drives the loop:
   tool_use   → execute tools, append results, continue
-  end_turn   → yield final text, done
+  end_turn   → yield AgentText chunks then AgentDone, done
   pause_turn → continue (server tools)
-  max_tokens → yield truncation notice, done
+  max_tokens → yield truncation notice as AgentText then AgentDone, done
 
 Ref: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
-from typing import Any, cast
+from collections.abc import AsyncIterator
+from typing import Any, Literal, cast
 
 import anthropic
 from anthropic import omit
@@ -21,6 +21,7 @@ from anthropic.types import ToolResultBlockParam, ToolUnionParam
 from max_ai.config import settings
 from max_ai.tools.registry import ToolRegistry
 from max_ai.tools.search import BaseWebSearchTool
+from max_ai.voice.events import AgentDone, AgentText
 
 
 class Agent:
@@ -40,6 +41,7 @@ class Agent:
         self.max_iterations = max_iterations
         self.web_search_tool = web_search_tool
         self.messages: list[anthropic.types.MessageParam] = []
+        self.next_state: str | None = None
 
     async def _execute_tool(self, name: str, tool_input: dict[str, Any]) -> str:
         """Route a tool call to the web search tool or the registry."""
@@ -47,12 +49,14 @@ class Agent:
             return await self.web_search_tool.execute(tool_input)
         return await self.registry.execute(name, tool_input)
 
-    async def run(
-        self,
-        user_message: str,
-        on_tool_use: Callable[[list[str]], None] | None = None,
-    ) -> AsyncIterator[str]:
-        """Append user_message to history and run one agent turn, yielding text chunks."""
+    async def run(self, user_message: str) -> AsyncIterator[AgentText | AgentDone]:
+        """Append user_message to history and run one agent turn.
+
+        Yields AgentText for each text block streamed.
+        Yields AgentDone(next_state=self.next_state) at end_turn.
+        No awareness of audio, TTS, or display.
+        """
+        self.next_state = None
         self.messages.append({"role": "user", "content": user_message})
 
         api_tools = self.registry.get_api_tools()
@@ -72,14 +76,12 @@ class Agent:
             if response.stop_reason == "end_turn":
                 for block in response.content:
                     if block.type == "text":
-                        yield block.text
+                        yield AgentText(text=block.text)
+                yield AgentDone(next_state=self._validated_next_state())
                 return
 
             elif response.stop_reason == "tool_use":
                 tool_blocks = [block for block in response.content if block.type == "tool_use"]
-
-                if on_tool_use:
-                    on_tool_use([tool_block.name for tool_block in tool_blocks])
 
                 results = await asyncio.gather(
                     *[
@@ -106,11 +108,22 @@ class Agent:
                 continue
 
             elif response.stop_reason == "max_tokens":
-                yield "[Response truncated — max_tokens reached]"
+                yield AgentText(text="[Response truncated — max_tokens reached]")
+                yield AgentDone(next_state=None)
                 return
 
             else:
-                yield f"[Unexpected stop_reason: {response.stop_reason}]"
+                yield AgentText(text=f"[Unexpected stop_reason: {response.stop_reason}]")
+                yield AgentDone(next_state=None)
                 return
 
-        yield "[Max iterations reached without a final response]"
+        yield AgentText(text="[Max iterations reached without a final response]")
+        yield AgentDone(next_state=None)
+
+    def _validated_next_state(self) -> Literal["idle", "listening"] | None:
+        """Return next_state if it is a valid literal, otherwise None."""
+        if self.next_state == "idle":
+            return "idle"
+        if self.next_state == "listening":
+            return "listening"
+        return None

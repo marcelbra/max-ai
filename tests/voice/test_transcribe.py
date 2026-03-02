@@ -1,10 +1,13 @@
-"""Tests for DeepgramTranscriber — callbacks, connection lifecycle, and error handling."""
+"""Tests for StreamingTranscriber — events on the bus, connection lifecycle, error handling."""
 
+import asyncio
 import sys
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from max_ai.voice.events import EventBus, TranscriptPartial, UtteranceEnd
 
 # ---------------------------------------------------------------------------
 # Fake Deepgram SDK (v6 API)
@@ -27,17 +30,13 @@ class _FakeConnection:
         self.send_close_stream: AsyncMock = AsyncMock()
 
     def on(self, event: Any, handler: Any) -> None:
-        # Store by the string value so tests can look up by plain string.
         self.handlers[str(event)] = handler
 
     async def start_listening(self) -> None:
-        # Returns immediately — simulates the connection being closed right away.
         pass
 
 
 class _FakeContextManager:
-    """Async context manager that yields the provided fake connection."""
-
     def __init__(self, connection: _FakeConnection) -> None:
         self._connection = connection
 
@@ -57,7 +56,6 @@ def _sys_modules_patch(fake_deepgram: MagicMock, fake_events: MagicMock) -> dict
 
 
 def _make_fake_deepgram_module(connection: _FakeConnection) -> tuple[MagicMock, MagicMock]:
-    """Return ``(fake_deepgram, fake_events)`` wired to the given fake connection."""
     fake_events = MagicMock()
     fake_events.EventType = _FakeEventType
 
@@ -77,7 +75,6 @@ def _make_fake_deepgram_module(connection: _FakeConnection) -> tuple[MagicMock, 
 
 
 def _make_results_message(text: str, is_final: bool) -> MagicMock:
-    """Build a fake ListenV1Results-style message."""
     message = MagicMock()
     message.type = "Results"
     message.channel.alternatives[0].transcript = text
@@ -86,7 +83,6 @@ def _make_results_message(text: str, is_final: bool) -> MagicMock:
 
 
 def _make_utterance_end_message() -> MagicMock:
-    """Build a fake ListenV1UtteranceEnd-style message."""
     message = MagicMock()
     message.type = "UtteranceEnd"
     return message
@@ -97,108 +93,137 @@ def _make_utterance_end_message() -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-async def test_on_transcript_fires_for_interim_result() -> None:
-    """on_transcript must be called with (text, False) for interim transcripts."""
+async def test_transcript_partial_event_put_on_bus_for_interim() -> None:
+    """TranscriptPartial must be put on the bus for interim transcripts."""
     connection = _FakeConnection()
     fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
-
-    received: list[tuple[str, bool]] = []
+    bus: EventBus = asyncio.Queue()
 
     with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
-        from max_ai.voice.transcribe import DeepgramTranscriber
+        from max_ai.voice.transcribe import StreamingTranscriber
 
-        transcriber = DeepgramTranscriber(api_key="test-key")
-        await transcriber.start(
-            on_transcript=lambda text, is_final: received.append((text, is_final)),
-            on_utterance_end=lambda: None,
-        )
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
 
     handler = connection.handlers[_EVENT_MESSAGE]
     handler(_make_results_message("hello", False))
 
-    assert received == [("hello", False)]
+    assert not bus.empty()
+    event = bus.get_nowait()
+    assert isinstance(event, TranscriptPartial)
+    assert event.text == "hello"
 
 
-async def test_on_transcript_fires_for_final_result() -> None:
-    """on_transcript must be called with (text, True) for final transcripts."""
+async def test_transcript_partial_event_put_on_bus_for_final() -> None:
+    """TranscriptPartial must also be put on the bus for final transcripts (text preview)."""
     connection = _FakeConnection()
     fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
-
-    received: list[tuple[str, bool]] = []
+    bus: EventBus = asyncio.Queue()
 
     with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
-        from max_ai.voice.transcribe import DeepgramTranscriber
+        from max_ai.voice.transcribe import StreamingTranscriber
 
-        transcriber = DeepgramTranscriber(api_key="test-key")
-        await transcriber.start(
-            on_transcript=lambda text, is_final: received.append((text, is_final)),
-            on_utterance_end=lambda: None,
-        )
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
 
     handler = connection.handlers[_EVENT_MESSAGE]
     handler(_make_results_message("world", True))
 
-    assert received == [("world", True)]
+    event = bus.get_nowait()
+    assert isinstance(event, TranscriptPartial)
+    assert event.text == "world"
 
 
-async def test_on_utterance_end_fires() -> None:
-    """on_utterance_end must be called when Deepgram fires the UtteranceEnd event."""
+async def test_utterance_end_event_put_on_bus() -> None:
+    """UtteranceEnd must be put on the bus when Deepgram fires the UtteranceEnd event."""
     connection = _FakeConnection()
     fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
-
-    calls: list[bool] = []
+    bus: EventBus = asyncio.Queue()
 
     with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
-        from max_ai.voice.transcribe import DeepgramTranscriber
+        from max_ai.voice.transcribe import StreamingTranscriber
 
-        transcriber = DeepgramTranscriber(api_key="test-key")
-        await transcriber.start(
-            on_transcript=lambda text, is_final: None,
-            on_utterance_end=lambda: calls.append(True),
-        )
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
 
     handler = connection.handlers[_EVENT_MESSAGE]
+    # Accumulate a final transcript segment first
+    handler(_make_results_message("hello world", True))
+    # Drain the TranscriptPartial
+    _ = bus.get_nowait()
+    # Now fire UtteranceEnd
     handler(_make_utterance_end_message())
 
-    assert calls == [True]
+    event = bus.get_nowait()
+    assert isinstance(event, UtteranceEnd)
+    assert event.transcript == "hello world"
+
+
+async def test_utterance_end_transcript_accumulates_final_segments() -> None:
+    """UtteranceEnd.transcript must join all final segments received since the last reset."""
+    connection = _FakeConnection()
+    fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
+    bus: EventBus = asyncio.Queue()
+
+    with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
+        from max_ai.voice.transcribe import StreamingTranscriber
+
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
+
+    handler = connection.handlers[_EVENT_MESSAGE]
+    handler(_make_results_message("hello", True))
+    handler(_make_results_message("world", True))
+    handler(_make_utterance_end_message())
+
+    # Drain TranscriptPartial events
+    events = []
+    while not bus.empty():
+        events.append(bus.get_nowait())
+
+    utterance_events = [e for e in events if isinstance(e, UtteranceEnd)]
+    assert len(utterance_events) == 1
+    assert utterance_events[0].transcript == "hello world"
 
 
 async def test_stop_closes_connection() -> None:
     """stop() must call send_close_stream() on the underlying Deepgram connection."""
     connection = _FakeConnection()
     fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
+    bus: EventBus = asyncio.Queue()
 
     with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
-        from max_ai.voice.transcribe import DeepgramTranscriber
+        from max_ai.voice.transcribe import StreamingTranscriber
 
-        transcriber = DeepgramTranscriber(api_key="test-key")
-        await transcriber.start(on_transcript=lambda t, f: None, on_utterance_end=lambda: None)
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
         await transcriber.stop()
 
     connection.send_close_stream.assert_awaited_once()
 
 
 async def test_stop_is_idempotent() -> None:
-    """stop() must not raise when called a second time after the connection is already closed."""
+    """stop() must not raise when called a second time."""
     connection = _FakeConnection()
     fake_deepgram, fake_events = _make_fake_deepgram_module(connection)
+    bus: EventBus = asyncio.Queue()
 
     with patch.dict(sys.modules, _sys_modules_patch(fake_deepgram, fake_events)):
-        from max_ai.voice.transcribe import DeepgramTranscriber
+        from max_ai.voice.transcribe import StreamingTranscriber
 
-        transcriber = DeepgramTranscriber(api_key="test-key")
-        await transcriber.start(on_transcript=lambda t, f: None, on_utterance_end=lambda: None)
+        transcriber = StreamingTranscriber(api_key="test-key")
+        await transcriber.start(bus)
         await transcriber.stop()
-        await transcriber.stop()  # must not raise
+        await transcriber.stop()
 
     assert connection.send_close_stream.await_count == 1
 
 
 async def test_send_before_start_raises() -> None:
     """send() must raise RuntimeError if called before start()."""
-    from max_ai.voice.transcribe import DeepgramTranscriber
+    from max_ai.voice.transcribe import StreamingTranscriber
 
-    transcriber = DeepgramTranscriber(api_key="test-key")
+    transcriber = StreamingTranscriber(api_key="test-key")
 
     with pytest.raises(RuntimeError, match="start()"):
         await transcriber.send(b"\x00\x01")

@@ -1,3 +1,5 @@
+> **Superseded** — This spec is archived. The canonical design is in [architecture.md](architecture.md) (§2 StreamingTranscriber component, §8.2 Feature 1a mapping).
+
 # Feature 1a: Deepgram Streaming Transcription
 
 Prerequisite for Feature 1 (Wake Word). Implement and merge this first.

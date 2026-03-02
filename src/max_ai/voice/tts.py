@@ -61,7 +61,7 @@ async def speak(
     pcm_bytes = await asyncio.to_thread(_generate)
     audio = _pitch_shift(np.frombuffer(pcm_bytes, dtype=np.int16))
 
-    def _play() -> None:
+    def _play(thread_stop_event: threading.Event | None) -> None:
         position = 0
         done = threading.Event()
 
@@ -69,7 +69,7 @@ async def speak(
             outdata: np.ndarray, frames: int, _time: object, _status: sd.CallbackFlags
         ) -> None:
             nonlocal position
-            if stop_event is not None and stop_event.is_set():
+            if thread_stop_event is not None and thread_stop_event.is_set():
                 outdata[:] = 0
                 raise sd.CallbackStop
             remaining = len(audio) - position
@@ -92,5 +92,50 @@ async def speak(
         ):
             done.wait()
 
-    await asyncio.to_thread(_play)
+    await asyncio.to_thread(_play, stop_event)
     return pcm_bytes
+
+
+class TTSPlayer:
+    """Orchestrator-facing TTS component.
+
+    speak() accepts an asyncio.Event for interruption, bridging to the
+    threading.Event that the sounddevice callback checks.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        voice_id: str,
+        model_id: str = "eleven_turbo_v2_5",
+        output_device: int | None = None,
+    ) -> None:
+        self._api_key = api_key
+        self._voice_id = voice_id
+        self._model_id = model_id
+        self._output_device = output_device
+
+    async def speak(self, text: str, stop_event: asyncio.Event) -> None:
+        """Play TTS audio. Returns when done or stop_event is set."""
+        thread_stop_event = threading.Event()
+
+        async def _watch_stop() -> None:
+            await stop_event.wait()
+            thread_stop_event.set()
+
+        watch_task = asyncio.create_task(_watch_stop())
+        try:
+            await speak(
+                text=text,
+                api_key=self._api_key,
+                voice_id=self._voice_id,
+                model_id=self._model_id,
+                stop_event=thread_stop_event,
+                output_device=self._output_device,
+            )
+        finally:
+            watch_task.cancel()
+            try:
+                await watch_task
+            except asyncio.CancelledError:
+                pass

@@ -1,26 +1,27 @@
-"""Deepgram streaming transcription client."""
+"""Deepgram streaming transcription client.
+
+StreamingTranscriber opens a Deepgram WebSocket and puts TranscriptPartial
+and UtteranceEnd events onto the EventBus.
+
+Lazy-imports deepgram-sdk inside start() so the module loads when the SDK
+is not installed.
+"""
 
 import asyncio
-from collections.abc import Callable
 from typing import Any
 
+from max_ai.voice.events import EventBus, TranscriptPartial, UtteranceEnd
 
-class DeepgramTranscriber:
+
+class StreamingTranscriber:
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
         self._connection: Any | None = None
         self._context_manager: Any | None = None
         self._listen_task: asyncio.Task[None] | None = None
 
-    async def start(
-        self,
-        on_transcript: Callable[[str, bool], None],
-        on_utterance_end: Callable[[], None],
-    ) -> None:
-        """Open Deepgram WebSocket and begin streaming.
-
-        Calls ``on_transcript(text, is_final)`` for each transcript result.
-        Calls ``on_utterance_end()`` when Deepgram fires the UtteranceEnd event.
+    async def start(self, bus: EventBus) -> None:
+        """Open Deepgram WebSocket. Puts TranscriptPartial and UtteranceEnd onto bus.
 
         Connection options:
           model="nova-2", language="en", smart_format=True,
@@ -43,14 +44,21 @@ class DeepgramTranscriber:
         )
         self._connection = await self._context_manager.__aenter__()
 
+        accumulated_transcript: list[str] = []
+
         def _on_message(message: Any) -> None:
             message_type = getattr(message, "type", None)
             if message_type == "Results":
                 text: str = message.channel.alternatives[0].transcript
                 is_final: bool = bool(message.is_final)
-                on_transcript(text, is_final)
+                if text:
+                    bus.put_nowait(TranscriptPartial(text=text))
+                    if is_final:
+                        accumulated_transcript.append(text)
             elif message_type == "UtteranceEnd":
-                on_utterance_end()
+                full_transcript = " ".join(part for part in accumulated_transcript if part)
+                accumulated_transcript.clear()
+                bus.put_nowait(UtteranceEnd(transcript=full_transcript))
 
         self._connection.on(EventType.MESSAGE, _on_message)
         self._listen_task = asyncio.create_task(self._connection.start_listening())
@@ -58,7 +66,7 @@ class DeepgramTranscriber:
     async def send(self, audio_chunk: bytes) -> None:
         """Send raw int16 PCM bytes to the open WebSocket."""
         if self._connection is None:
-            raise RuntimeError("DeepgramTranscriber.start() must be called before send()")
+            raise RuntimeError("StreamingTranscriber.start() must be called before send()")
         await self._connection.send_media(audio_chunk)
 
     async def stop(self) -> None:

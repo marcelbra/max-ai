@@ -9,23 +9,25 @@ from anthropic.types import Message, TextBlock, ToolResultBlockParam, ToolUseBlo
 from max_ai.agent import Agent
 from max_ai.tools.registry import ToolRegistry
 from max_ai.tools.search import BaseWebSearchTool
+from max_ai.voice.events import AgentDone, AgentText
 
 
 async def test_agent_end_turn(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
-    """Agent yields text when stop_reason is end_turn."""
+    """Agent yields AgentText then AgentDone when stop_reason is end_turn."""
     response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "end_turn"
     response.content = [cast(TextBlock, MagicMock(spec=TextBlock, type="text", text="Hello!"))]
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert chunks == ["Hello!"]
+    assert events[0] == AgentText(text="Hello!")
+    assert isinstance(events[-1], AgentDone)
     assert len(agent.messages) == 2
     assert agent.messages[0]["role"] == "user"
     assert agent.messages[1]["role"] == "assistant"
@@ -34,24 +36,26 @@ async def test_agent_end_turn(
 async def test_agent_max_tokens(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
-    """Agent yields truncation notice on max_tokens."""
+    """Agent yields AgentText truncation notice then AgentDone on max_tokens."""
     response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "max_tokens"
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert any("max_tokens" in c for c in chunks)
+    text_events = [e for e in events if isinstance(e, AgentText)]
+    assert any("max_tokens" in e.text for e in text_events)
+    assert isinstance(events[-1], AgentDone)
 
 
 async def test_agent_tool_use_then_end_turn(
     mock_anthropic_client: anthropic.AsyncAnthropic,
 ) -> None:
-    """Agent executes tools then yields final response."""
+    """Agent executes tools then yields final AgentText + AgentDone."""
     from max_ai.tools.base import BaseTool, ToolDefinition
 
     class EchoTool(BaseTool):
@@ -95,61 +99,15 @@ async def test_agent_tool_use_then_end_turn(
     mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, registry, "system")
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert chunks == ["Done!"]
+    text_events = [e for e in events if isinstance(e, AgentText)]
+    assert text_events == [AgentText(text="Done!")]
+    assert isinstance(events[-1], AgentDone)
     # messages: user, assistant (tool_use), user (tool_result), assistant (end_turn)
     assert len(agent.messages) == 4
-
-
-async def test_agent_on_tool_use_callback(mock_anthropic_client: anthropic.AsyncAnthropic) -> None:
-    """on_tool_use callback is called with the names of executed tools."""
-    from max_ai.tools.base import BaseTool, ToolDefinition
-
-    class NoopTool(BaseTool):
-        def definitions(self) -> list[ToolDefinition]:
-            return [
-                ToolDefinition(
-                    name="noop",
-                    description="Does nothing",
-                    input_schema={"type": "object", "properties": {}},
-                )
-            ]
-
-        async def execute(self, tool_name: str, tool_input: dict[str, Any]) -> str:
-            return "ok"
-
-    registry = ToolRegistry()
-    registry.register(NoopTool())
-
-    tool_block = cast(ToolUseBlock, MagicMock(spec=ToolUseBlock))
-    tool_block.type = "tool_use"
-    tool_block.name = "noop"
-    tool_block.input = {}
-    tool_block.id = "t1"
-
-    text_block = cast(TextBlock, MagicMock(spec=TextBlock))
-    text_block.type = "text"
-    text_block.text = "Done"
-
-    tool_response = cast(Message, MagicMock(spec=Message))
-    tool_response.stop_reason = "tool_use"
-    tool_response.content = [tool_block]
-
-    final_response = cast(Message, MagicMock(spec=Message))
-    final_response.stop_reason = "end_turn"
-    final_response.content = [text_block]
-
-    mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
-
-    called_with: list[str] = []
-    agent = Agent(mock_anthropic_client, registry, "system")
-    async for _ in agent.run("hi", on_tool_use=lambda names: called_with.extend(names)):
-        pass
-
-    assert called_with == ["noop"]
 
 
 async def test_agent_tool_exception_is_handled(
@@ -195,12 +153,13 @@ async def test_agent_tool_exception_is_handled(
     mock_anthropic_client.messages.create = AsyncMock(side_effect=[tool_response, final_response])  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, registry, "system")
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert chunks == ["Handled"]
-    # messages[2] = user (tool_result), after user (0) and assistant tool_use (1)
+    text_events = [e for e in events if isinstance(e, AgentText)]
+    assert text_events == [AgentText(text="Handled")]
+    # messages[2] = user (tool_result)
     tool_result_content = cast(list[ToolResultBlockParam], agent.messages[2]["content"])[0][
         "content"
     ]
@@ -210,37 +169,41 @@ async def test_agent_tool_exception_is_handled(
 async def test_agent_unexpected_stop_reason(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
-    """An unrecognised stop_reason yields a message and exits."""
+    """An unrecognised stop_reason yields an AgentText message and AgentDone."""
     response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "some_future_reason"  # type: ignore[assignment]
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system")
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert len(chunks) == 1
-    assert "some_future_reason" in chunks[0]
+    text_events = [e for e in events if isinstance(e, AgentText)]
+    assert len(text_events) == 1
+    assert "some_future_reason" in text_events[0].text
+    assert isinstance(events[-1], AgentDone)
 
 
 async def test_agent_max_iterations(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
-    """Agent yields a message when max_iterations is exhausted without end_turn."""
+    """Agent yields AgentText + AgentDone when max_iterations is exhausted."""
     response = cast(Message, MagicMock(spec=Message))
     response.stop_reason = "pause_turn"
     response.content = []
     mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
     agent = Agent(mock_anthropic_client, empty_registry, "system", max_iterations=2)
-    chunks = []
-    async for chunk in agent.run("hi"):
-        chunks.append(chunk)
+    events = []
+    async for event in agent.run("hi"):
+        events.append(event)
 
-    assert len(chunks) == 1
-    assert "Max iterations" in chunks[0]
+    text_events = [e for e in events if isinstance(e, AgentText)]
+    assert len(text_events) == 1
+    assert "Max iterations" in text_events[0].text
+    assert isinstance(events[-1], AgentDone)
 
 
 async def test_agent_includes_web_search_tool(
@@ -268,7 +231,6 @@ async def test_agent_local_web_search_tool_is_executed(
     mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
 ) -> None:
     """When stop_reason is tool_use for a local web search tool, execute() is called."""
-    from typing import Any
 
     class LocalSearch(BaseWebSearchTool):
         executed: bool = False
@@ -310,3 +272,54 @@ async def test_agent_local_web_search_tool_is_executed(
         pass
 
     assert LocalSearch.executed is True
+
+
+async def test_agent_next_state_resets_per_turn(
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
+) -> None:
+    """next_state is reset to None at the start of every run() call."""
+    response = cast(Message, MagicMock(spec=Message))
+    response.stop_reason = "end_turn"
+    response.content = [cast(TextBlock, MagicMock(spec=TextBlock, type="text", text="ok"))]
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+    agent = Agent(mock_anthropic_client, empty_registry, "system")
+    agent.next_state = "listening"  # set from a previous turn
+
+    async for _ in agent.run("hi"):
+        pass
+
+    # next_state should have been reset at turn start, then stayed None
+    # (no SetNextStateTool was called in this turn)
+    events = []
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
+    async for event in agent.run("hi2"):
+        events.append(event)
+
+    done_events = [e for e in events if isinstance(e, AgentDone)]
+    assert done_events[-1].next_state is None
+
+
+async def test_agent_done_carries_next_state(
+    mock_anthropic_client: anthropic.AsyncAnthropic, empty_registry: ToolRegistry
+) -> None:
+    """AgentDone carries next_state value set via agent.next_state during the turn."""
+    response = cast(Message, MagicMock(spec=Message))
+    response.stop_reason = "end_turn"
+    response.content = [cast(TextBlock, MagicMock(spec=TextBlock, type="text", text="ok"))]
+    mock_anthropic_client.messages.create = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+    agent = Agent(mock_anthropic_client, empty_registry, "system")
+
+    events = []
+    # Simulate a tool setting next_state mid-run by patching _validated_next_state.
+    original = agent._validated_next_state
+    agent._validated_next_state = lambda: "listening"  # type: ignore[method-assign, assignment]
+
+    async for event in agent.run("hi"):
+        events.append(event)
+
+    agent._validated_next_state = original  # type: ignore[method-assign]
+
+    done_events = [e for e in events if isinstance(e, AgentDone)]
+    assert done_events[-1].next_state == "listening"
