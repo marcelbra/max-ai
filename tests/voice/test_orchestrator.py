@@ -296,3 +296,39 @@ async def test_transition_noop_when_same_state() -> None:
     orchestrator._transition(AssistantState.IDLE)
 
     cast(MagicMock, display).on_state_change.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Error recovery tests
+# ---------------------------------------------------------------------------
+
+
+async def test_agent_task_exception_resets_state_to_idle() -> None:
+    """If agent.run() raises mid-stream, state machine recovers to IDLE."""
+    client = cast(anthropic.AsyncAnthropic, MagicMock(spec=anthropic.AsyncAnthropic))
+    agent = Agent(client, ToolRegistry(), "system")
+
+    async def _raising_run(message: str) -> AsyncIterator[AgentText | AgentDone]:
+        yield AgentText(text="partial")
+        raise RuntimeError("network failure")
+
+    agent.run = _raising_run  # type: ignore[assignment]
+    orchestrator = _make_orchestrator(agent=agent)
+    orchestrator._state = AssistantState.PROCESSING
+
+    await orchestrator._agent_task("hello world")
+
+    assert orchestrator._state == AssistantState.IDLE
+
+
+async def test_tts_task_exception_resets_state_to_idle() -> None:
+    """If tts_player.speak() raises, state machine recovers to IDLE."""
+    tts_player = _make_mock_tts_player()
+    cast(AsyncMock, tts_player.speak).side_effect = RuntimeError("audio device error")
+
+    orchestrator = _make_orchestrator(tts_player=tts_player)
+    orchestrator._state = AssistantState.SPEAKING
+
+    await orchestrator._tts_task("Hello World", None)
+
+    assert orchestrator._state == AssistantState.IDLE
