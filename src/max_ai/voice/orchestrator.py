@@ -11,6 +11,7 @@ event onto the bus when done.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -37,6 +38,9 @@ if TYPE_CHECKING:
     from max_ai.voice.wakeword import KeyboardWakeWordDetector, WakeWordDetector
 
     AnyWakeWordDetector = WakeWordDetector | KeyboardWakeWordDetector
+
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -167,11 +171,22 @@ class Orchestrator:
     # ------------------------------------------------------------------
 
     async def _agent_task(self, transcript: str) -> None:
-        async for agent_event in self._agent.run(transcript):
-            await self._bus.put(agent_event)
+        try:
+            async for agent_event in self._agent.run(transcript):
+                await self._bus.put(agent_event)
+        except Exception:
+            _logger.exception("Agent task failed")
+            self._transition(AssistantState.IDLE)
+            await self._replay_queued_events()
 
     async def _tts_task(self, text: str, next_state_after_speaking: str | None) -> None:
-        await self._tts_player.speak(text, self._tts_stop_event)
+        try:
+            await self._tts_player.speak(text, self._tts_stop_event)
+        except Exception:
+            _logger.exception("TTS task failed")
+            self._transition(AssistantState.IDLE)
+            await self._replay_queued_events()
+            return
         # Transition based on the next_state set by the agent (or default to IDLE).
         if next_state_after_speaking == "listening":
             await self._transcriber.start(self._bus)
