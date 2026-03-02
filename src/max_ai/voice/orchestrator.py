@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
     AnyWakeWordDetector = WakeWordDetector | KeyboardWakeWordDetector
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -110,6 +109,7 @@ class Orchestrator:
             return
         previous = self._state
         self._state = new_state
+        _logger.debug("state %s → %s", previous.name, new_state.name)
         changed = StateChanged(previous=previous, current=new_state)
         self._display.on_state_change(previous, new_state)
         self._bus.put_nowait(changed)
@@ -120,6 +120,7 @@ class Orchestrator:
 
     async def _dispatch(self, event: object) -> bool:
         """Route one event.  Returns True if the loop should stop."""
+        _logger.debug("event %r in state %s", event, self._state.name)
         match event:
             case AudioFrame(data=data):
                 await self._handle_audio_frame(data)
@@ -171,6 +172,7 @@ class Orchestrator:
     # ------------------------------------------------------------------
 
     async def _agent_task(self, transcript: str) -> None:
+        _logger.debug("agent_task start: %r", transcript)
         try:
             async for agent_event in self._agent.run(transcript):
                 await self._bus.put(agent_event)
@@ -178,8 +180,11 @@ class Orchestrator:
             _logger.exception("Agent task failed")
             self._transition(AssistantState.IDLE)
             await self._replay_queued_events()
+            return
+        _logger.debug("agent_task end")
 
     async def _tts_task(self, text: str, next_state_after_speaking: str | None) -> None:
+        _logger.debug("tts_task start: %d chars", len(text))
         try:
             await self._tts_player.speak(text, self._tts_stop_event)
         except Exception:
@@ -187,6 +192,7 @@ class Orchestrator:
             self._transition(AssistantState.IDLE)
             await self._replay_queued_events()
             return
+        _logger.debug("tts_task end")
         # Transition based on the next_state set by the agent (or default to IDLE).
         if next_state_after_speaking == "listening":
             await self._transcriber.start(self._bus)
@@ -236,5 +242,6 @@ class Orchestrator:
         """Replay queued events in order now that we are back in IDLE."""
         queued = list(self._queued_events)
         self._queued_events.clear()
+        _logger.debug("replaying %d queued events", len(queued))
         for event in queued:
             await self._dispatch(event)

@@ -8,10 +8,13 @@ WakeWordDetected, so the orchestrator is unchanged.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from collections.abc import Callable
 
 from max_ai.voice.events import EventBus, WakeWordDetected
+
+_logger = logging.getLogger(__name__)
 
 
 def _make_key_press_handler(future: asyncio.Future[str]) -> Callable[[], None]:
@@ -57,7 +60,10 @@ class WakeWordDetector:
         samples_count = len(audio_frame) // 2
         samples = list(struct.unpack(f"{samples_count}h", audio_frame))
         result: int = self._porcupine.process(samples)
-        return result >= 0
+        detected = result >= 0
+        if detected:
+            _logger.debug("wake word detected")
+        return detected
 
     @property
     def frame_length(self) -> int:
@@ -83,6 +89,7 @@ class KeyboardWakeWordDetector:
 
     async def run(self, bus: EventBus) -> None:
         """Listen for Enter/x in a non-blocking way.  Runs until cancelled."""
+        _logger.debug("keyboard wake-word detector start")
         import termios
         import tty
 

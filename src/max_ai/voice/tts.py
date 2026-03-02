@@ -1,12 +1,15 @@
 """ElevenLabs Text-to-Speech with sounddevice playback."""
 
 import asyncio
+import logging
 import threading
 import time
 
 import numpy as np
 import sounddevice as sd
 from elevenlabs.client import ElevenLabs
+
+_logger = logging.getLogger(__name__)
 
 _SAMPLE_RATE = 22050
 _MAX_RETRIES = 3
@@ -117,6 +120,7 @@ class TTSPlayer:
 
     async def speak(self, text: str, stop_event: asyncio.Event) -> None:
         """Play TTS audio. Returns when done or stop_event is set."""
+        _logger.debug("tts speak start: %d chars", len(text))
         thread_stop_event = threading.Event()
 
         async def _watch_stop() -> None:
@@ -139,3 +143,4 @@ class TTSPlayer:
                 await watch_task
             except asyncio.CancelledError:
                 pass
+        _logger.debug("tts speak end")

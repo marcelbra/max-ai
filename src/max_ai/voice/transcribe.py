@@ -8,9 +8,12 @@ is not installed.
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from max_ai.voice.events import EventBus, TranscriptPartial, UtteranceEnd
+
+_logger = logging.getLogger(__name__)
 
 
 class StreamingTranscriber:
@@ -28,6 +31,7 @@ class StreamingTranscriber:
           interim_results=True, utterance_end_ms=1500,
           vad_events=True, encoding="linear16", sample_rate=16000
         """
+        _logger.debug("transcriber start")
         from deepgram import AsyncDeepgramClient  # lazy: optional dependency
         from deepgram.core.events import EventType  # lazy: optional dependency
 
@@ -65,12 +69,14 @@ class StreamingTranscriber:
 
     async def send(self, audio_chunk: bytes) -> None:
         """Send raw int16 PCM bytes to the open WebSocket."""
+        _logger.debug("transcriber send %d bytes", len(audio_chunk))
         if self._connection is None:
             raise RuntimeError("StreamingTranscriber.start() must be called before send()")
         await self._connection.send_media(audio_chunk)
 
     async def stop(self) -> None:
         """Flush remaining transcripts and close the connection. Safe to call more than once."""
+        _logger.debug("transcriber stop")
         if self._connection is None:
             return
         connection = self._connection
