@@ -31,10 +31,6 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pre-commit>=3.0.0",
 ]
-wake-word = [
-    "pvporcupine>=3.0",
-    "torch>=2.0",
-]
 
 [project.scripts]
 max-ai = "max_ai.cli:run_voice_cli"

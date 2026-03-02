@@ -4,6 +4,7 @@ All components are mocked.  The bus is driven directly so no real audio,
 network, or TTS calls are made.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
@@ -28,7 +29,7 @@ from max_ai.voice.events import (
 from max_ai.voice.orchestrator import Orchestrator, OrchestratorConfig
 from max_ai.voice.transcribe import StreamingTranscriber
 from max_ai.voice.tts import TTSPlayer
-from max_ai.voice.wakeword import KeyboardWakeWordDetector
+from max_ai.voice.wakeword import WakeWordDetector
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,9 +68,8 @@ def _make_mock_tts_player() -> TTSPlayer:
     return player
 
 
-def _make_mock_keyboard_detector() -> KeyboardWakeWordDetector:
-    detector = cast(KeyboardWakeWordDetector, MagicMock(spec=KeyboardWakeWordDetector))
-    detector.run = AsyncMock()  # type: ignore[method-assign]
+def _make_mock_wake_word_detector() -> WakeWordDetector:
+    detector = cast(WakeWordDetector, MagicMock(spec=WakeWordDetector))
     return detector
 
 
@@ -99,12 +99,40 @@ def _make_orchestrator(
 ) -> Orchestrator:
     return Orchestrator(
         audio_capture=_make_mock_audio_capture(),
-        wake_word_detector=_make_mock_keyboard_detector(),
+        wake_word_detector=_make_mock_wake_word_detector(),
         transcriber=transcriber or _make_mock_transcriber(),
         agent=agent or _make_agent_with_responses([AgentDone(next_state=None)]),
         tts_player=tts_player or _make_mock_tts_player(),
         display=display or _make_mock_display(),
         config=config or OrchestratorConfig(min_words=1),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Startup display
+# ---------------------------------------------------------------------------
+
+
+async def test_run_displays_initial_idle_state_on_startup() -> None:
+    """run() immediately shows the initial IDLE state via display.on_state_change.
+
+    Regression: previously the initial IDLE state was never displayed because
+    on_state_change was only called on transitions, leaving the terminal blank
+    after launch with no feedback that the assistant was running.
+    """
+    display = _make_mock_display()
+    orchestrator = _make_orchestrator(display=display)
+
+    task = asyncio.create_task(orchestrator.run())
+    await asyncio.sleep(0)  # yield to let run() execute until bus.get() blocks
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    cast(MagicMock, display).on_state_change.assert_called_with(
+        AssistantState.IDLE, AssistantState.IDLE
     )
 
 
@@ -124,9 +152,10 @@ async def test_idle_wake_word_transitions_to_listening() -> None:
     cast(AsyncMock, transcriber.start).assert_awaited_once()
 
 
-async def test_idle_audio_frame_ignored_without_wake_word_detector() -> None:
-    """AudioFrame in IDLE does not cause a state change (keyboard detector, no Porcupine)."""
+async def test_idle_audio_frame_without_detection_stays_idle() -> None:
+    """AudioFrame in IDLE with no detection does not cause a state change."""
     orchestrator = _make_orchestrator()
+    cast(MagicMock, orchestrator._wake_word_detector).process.return_value = False
     await orchestrator._dispatch(AudioFrame(data=b"\x00" * 1024))
     assert orchestrator._state == AssistantState.IDLE
 
@@ -176,6 +205,17 @@ async def test_listening_utterance_end_enough_words_transitions_to_processing() 
 
     assert orchestrator._state == AssistantState.PROCESSING
     cast(AsyncMock, transcriber.stop).assert_awaited_once()
+
+
+async def test_listening_utterance_end_enough_words_calls_on_user_input() -> None:
+    """UtteranceEnd with enough words → display.on_user_input called with transcript."""
+    display = _make_mock_display()
+    orchestrator = _make_orchestrator(display=display, config=OrchestratorConfig(min_words=2))
+    orchestrator._state = AssistantState.LISTENING
+
+    await orchestrator._dispatch(UtteranceEnd(transcript="hello world"))
+
+    cast(MagicMock, display).on_user_input.assert_called_once_with("hello world")
 
 
 # ---------------------------------------------------------------------------

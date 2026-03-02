@@ -10,16 +10,16 @@ from tests.voice.test_orchestrator import (
     _make_agent_with_responses,
     _make_mock_audio_capture,
     _make_mock_display,
-    _make_mock_keyboard_detector,
     _make_mock_transcriber,
     _make_mock_tts_player,
+    _make_mock_wake_word_detector,
 )
 
 
 def _make_orchestrator() -> Orchestrator:
     return Orchestrator(
         audio_capture=_make_mock_audio_capture(),
-        wake_word_detector=_make_mock_keyboard_detector(),
+        wake_word_detector=_make_mock_wake_word_detector(),
         transcriber=_make_mock_transcriber(),
         agent=_make_agent_with_responses([AgentDone(next_state=None)]),
         tts_player=_make_mock_tts_player(),

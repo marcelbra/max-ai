@@ -38,6 +38,14 @@ async def main() -> None:
         )
         return
 
+    if not settings.picovoice_access_key:
+        from rich.console import Console
+
+        Console().print(
+            "[red]Error:[/] MAX_AI_PICOVOICE_ACCESS_KEY is not set. Add it to your .env file."
+        )
+        return
+
     async with (
         ConversationService(),
         DocumentService() as document_service,
@@ -61,19 +69,12 @@ async def main() -> None:
         tool_registry.register(TimerTool(timer_queue))
         tool_registry.register(SetNextStateTool(agent))
 
-        # Mode detection: wake-word if Picovoice key + Deepgram key are set,
-        # otherwise fall back to push-to-talk (Enter key).
-        if settings.picovoice_access_key and settings.deepgram_api_key:
-            from max_ai.voice.wakeword import WakeWordDetector
+        from max_ai.voice.wakeword import WakeWordDetector
 
-            wake_word_detector: object = WakeWordDetector(
-                settings.picovoice_access_key,
-                settings.porcupine_keyword_path,
-            )
-        else:
-            from max_ai.voice.wakeword import KeyboardWakeWordDetector
-
-            wake_word_detector = KeyboardWakeWordDetector()
+        wake_word_detector = WakeWordDetector(
+            settings.picovoice_access_key,
+            settings.porcupine_keyword_path,
+        )
 
         tts_player = TTSPlayer(
             api_key=settings.elevenlabs_api_key,
@@ -87,7 +88,7 @@ async def main() -> None:
 
         orchestrator = Orchestrator(
             audio_capture=audio_capture,
-            wake_word_detector=wake_word_detector,  # type: ignore[arg-type]
+            wake_word_detector=wake_word_detector,
             transcriber=transcriber,
             agent=agent,
             tts_player=tts_player,

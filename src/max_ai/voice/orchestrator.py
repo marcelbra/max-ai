@@ -35,9 +35,7 @@ if TYPE_CHECKING:
     from max_ai.voice.display import Display
     from max_ai.voice.transcribe import StreamingTranscriber
     from max_ai.voice.tts import TTSPlayer
-    from max_ai.voice.wakeword import KeyboardWakeWordDetector, WakeWordDetector
-
-    AnyWakeWordDetector = WakeWordDetector | KeyboardWakeWordDetector
+    from max_ai.voice.wakeword import WakeWordDetector
 
 _logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ class Orchestrator:
     def __init__(
         self,
         audio_capture: AudioCapture,
-        wake_word_detector: AnyWakeWordDetector,
+        wake_word_detector: WakeWordDetector,
         transcriber: StreamingTranscriber,
         agent: Agent,
         tts_player: TTSPlayer,
@@ -73,18 +71,14 @@ class Orchestrator:
         self._response_buffer: list[str] = []
         self._tts_stop_event = asyncio.Event()
         self._queued_events: list[UtteranceEnd | TimerFired | TaskResult] = []
-        self._keyboard_task: asyncio.Task[None] | None = None
 
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
 
     async def run(self) -> None:
-        """Start the orchestrator loop.  Returns when keyboard detector exits."""
-        from max_ai.voice.wakeword import KeyboardWakeWordDetector
-
-        if isinstance(self._wake_word_detector, KeyboardWakeWordDetector):
-            self._keyboard_task = asyncio.create_task(self._wake_word_detector.run(self._bus))
+        """Start the orchestrator loop."""
+        self._display.on_state_change(self._state, self._state)
 
         async with self._audio_capture.running(self._bus):
             while True:
@@ -92,13 +86,6 @@ class Orchestrator:
                 should_stop = await self._dispatch(event)
                 if should_stop:
                     break
-
-        if self._keyboard_task is not None and not self._keyboard_task.done():
-            self._keyboard_task.cancel()
-            try:
-                await self._keyboard_task
-            except asyncio.CancelledError:
-                pass
 
     # ------------------------------------------------------------------
     # State transitions
@@ -207,12 +194,9 @@ class Orchestrator:
     # ------------------------------------------------------------------
 
     async def _handle_audio_frame(self, data: bytes) -> None:
-        from max_ai.voice.wakeword import WakeWordDetector
-
         if self._state == AssistantState.IDLE:
-            if isinstance(self._wake_word_detector, WakeWordDetector):
-                if self._wake_word_detector.process(data):
-                    await self._bus.put(WakeWordDetected())
+            if self._wake_word_detector.process(data):
+                await self._bus.put(WakeWordDetected())
         elif self._state == AssistantState.LISTENING:
             await self._transcriber.send(data)
 
@@ -224,6 +208,7 @@ class Orchestrator:
                 self._transition(AssistantState.IDLE)
                 return
             await self._transcriber.stop()
+            self._display.on_user_input(transcript)
             self._transition(AssistantState.PROCESSING)
             asyncio.create_task(self._agent_task(transcript))
         elif self._state in (AssistantState.PROCESSING, AssistantState.SPEAKING):
