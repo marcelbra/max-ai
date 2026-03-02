@@ -1,6 +1,7 @@
 """Entry point for the max-ai voice CLI."""
 
 import asyncio
+import logging
 from typing import Any
 
 from max_ai.agent import Agent, load_agent_prompt
@@ -26,6 +27,7 @@ from max_ai.voice.tts import TTSPlayer
 
 
 async def main() -> None:
+    logging.basicConfig(level=settings.log_level)
     setup_langwatch()
 
     if not settings.elevenlabs_api_key:

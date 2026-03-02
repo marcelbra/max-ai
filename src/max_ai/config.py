@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # microphone stream opens.
     voice_input_device: int | None = None
 
+    # Logging
+    log_level: str = "WARNING"
+
     # Debug
     debug: bool = False
 
